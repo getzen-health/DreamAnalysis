@@ -645,14 +645,14 @@ export default function Page() {
         </Reveal>
         {/* Row 1 — 3 equal */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <InsightCard id="photo-1573496359142-b8d87734a5a2" h={320} color="#34D399" screen="Voice" quote="Stress markers dropped 23% this week. Peak focus: 9–11am." />
-          <InsightCard id="photo-1541781774459-bb2af2f05b55" h={320} color="#a78bfa" screen="Dream" quote="Water & movement in 3 of 5 dreams — correlates with change-seeking." />
-          <InsightCard id="photo-1490645935967-10de6ba17061" h={320} color="#fb923c" screen="Nutrition" quote="Salmon twice this week — focus score 21% above average both days." />
+          <InsightCard id="photo-1526374965328-7f61d4dc18c5" h={320} color="#34D399" screen="Voice" quote="Stress markers dropped 23% this week. Peak focus: 9–11am." />
+          <InsightCard id="photo-1534796636912-3b95b3ab5986" h={320} color="#a78bfa" screen="Dream" quote="Water & movement in 3 of 5 dreams — correlates with change-seeking." />
+          <InsightCard id="photo-1498837167922-ddd27525d352" h={320} color="#fb923c" screen="Nutrition" quote="Salmon twice this week — focus score 21% above average both days." />
         </div>
         {/* Row 2 — wide + narrow */}
         <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 14 }}>
-          <InsightCard id="photo-1506126613408-eca07ce68773" h={300} color="#22D3EE" screen="Sleep" quote="Deep sleep 14 min faster than baseline. 4-7-8 breathing contributed." />
-          <InsightCard id="photo-1508672019048-805c876b67e2" h={300} color="#34D399" screen="Emotion" quote="Mood 31% more stable this month. Sleep consistency is the key driver." />
+          <InsightCard id="photo-1515649651127-caaa79b56f5f" h={300} color="#22D3EE" screen="Sleep" quote="Deep sleep 14 min faster than baseline. 4-7-8 breathing contributed." />
+          <InsightCard id="photo-1531746020798-e6953c6e8e04" h={300} color="#34D399" screen="Emotion" quote="Mood 31% more stable this month. Sleep consistency is the key driver." />
         </div>
       </section>
 
@@ -672,8 +672,8 @@ export default function Page() {
           {/* 4 step images */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
             <StepCard id="photo-1516321497487-e288fb19713f" h={420} n="01" color="#34D399" title="Speak" caption="30 seconds of your voice. AI reads your stress, energy & emotion." />
-            <StepCard id="photo-1455390582262-044cdead277a" h={420} n="02" color="#a78bfa" title="Dream Log" caption="Jot fragments. AI decodes the emotional story overnight." />
-            <StepCard id="photo-1512621776951-a57141f2eefd" h={420} n="03" color="#fb923c" title="Eat & Note" caption="Log your meals. See exactly how food moves your mood." />
+            <StepCard id="photo-1517842645767-c639042777db" h={420} n="02" color="#a78bfa" title="Dream Log" caption="Jot fragments. AI decodes the emotional story overnight." />
+            <StepCard id="photo-1484723091739-30990688934a" h={420} n="03" color="#fb923c" title="Eat & Note" caption="Log your meals. See exactly how food moves your mood." />
             <StepCard id="photo-1551288049-bebda4e38f71" h={420} n="04" color="#22D3EE" title="Read Report" caption="Your daily brain report. Readiness score + peak focus window." />
           </div>
         </div>
