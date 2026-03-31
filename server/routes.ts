@@ -1099,6 +1099,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST /api/irt-session — save an IRT session (nightmare rewrite + rehearsal)
+  app.post("/api/irt-session", async (req, res) => {
+    try {
+      const { userId, originalDreamText, rewrittenEnding, rehearsalNote } = req.body;
+      if (!userId || typeof userId !== "string") {
+        return res.status(400).json({ message: "userId is required" });
+      }
+      if (!originalDreamText || typeof originalDreamText !== "string") {
+        return res.status(400).json({ message: "originalDreamText is required" });
+      }
+      if (!rewrittenEnding || typeof rewrittenEnding !== "string") {
+        return res.status(400).json({ message: "rewrittenEnding is required" });
+      }
+      const session = await storage.createIrtSession({
+        userId,
+        originalDreamText: originalDreamText.slice(0, 5000),
+        rewrittenEnding: rewrittenEnding.slice(0, 5000),
+        rehearsalNote: rehearsalNote ? String(rehearsalNote).slice(0, 1000) : null,
+      });
+      return res.status(201).json(session);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "irt-session POST failed");
+      return res.status(500).json({ message: "Failed to save IRT session" });
+    }
+  });
+
+  // GET /api/irt-sessions/:userId — list IRT sessions newest-first
+  app.get("/api/irt-sessions/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const limit = Math.min(parseInt(String(req.query.limit ?? "20"), 10) || 20, 100);
+      const sessions = await storage.getIrtSessions(userId, limit);
+      return res.json(sessions);
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "irt-sessions GET failed");
+      return res.status(500).json({ message: "Failed to fetch IRT sessions" });
+    }
+  });
+
   // AI chat endpoints — no auth gate (data scoped by userId, APK uses localStorage IDs)
   app.get("/api/ai-chat/:userId", async (req, res) => {
     try {

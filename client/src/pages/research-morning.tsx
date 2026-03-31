@@ -27,6 +27,7 @@ import { useHealthSync } from "@/hooks/use-health-sync";
 import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics, type DreamFusionInsight } from "@/lib/dream-biometric-fusion";
 import { DreamFusionCard } from "@/components/dream-fusion-card";
 import { DreamSummaryCard } from "@/components/dream-summary-card";
+import { IrtWorkflowCard } from "@/components/irt-workflow-card";
 
 
 const USER_ID = getParticipantId();
@@ -435,11 +436,11 @@ export default function ResearchMorning() {
                     </div>
                   )}
 
-                  {dreamAnalysis.irt_recommended && (
-                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5">
-                      <p className="text-xs font-medium text-amber-400 uppercase tracking-wide mb-1">Nightmare treatment available</p>
-                      <p className="text-sm text-muted-foreground">Image Rehearsal Therapy (IRT) can help with recurring nightmares — ask your study coordinator.</p>
-                    </div>
+                  {dreamAnalysis.irt_recommended && dreamText.trim() && (
+                    <IrtWorkflowCard
+                      userId={getParticipantId()}
+                      originalDreamText={dreamText.trim()}
+                    />
                   )}
                 </CardContent>
               </Card>

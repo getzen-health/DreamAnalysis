@@ -1,5 +1,5 @@
 import { eq, desc, asc, sql, and, gte, lte } from "drizzle-orm";
-import { type User, type InsertUser, type HealthMetrics, type InsertHealthMetrics, type DreamAnalysis, type InsertDreamAnalysis, type AiChat, type InsertAiChat, type UserSettings, type InsertUserSettings, type EmotionReading, type InsertEmotionReading, type DreamSymbol, type InsertDreamSymbol, users, healthMetrics, dreamAnalysis, aiChats, userSettings, emotionReadings, dreamSymbols } from "@shared/schema";
+import { type User, type InsertUser, type HealthMetrics, type InsertHealthMetrics, type DreamAnalysis, type InsertDreamAnalysis, type AiChat, type InsertAiChat, type UserSettings, type InsertUserSettings, type EmotionReading, type InsertEmotionReading, type DreamSymbol, type InsertDreamSymbol, type IrtSession, type InsertIrtSession, users, healthMetrics, dreamAnalysis, aiChats, userSettings, emotionReadings, dreamSymbols, irtSessions } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
 
@@ -22,6 +22,8 @@ export interface IStorage {
   batchCreateEmotionReadings(readings: InsertEmotionReading[]): Promise<EmotionReading[]>;
   getDreamSymbols(userId: string): Promise<DreamSymbol[]>;
   upsertDreamSymbol(symbol: InsertDreamSymbol): Promise<DreamSymbol>;
+  createIrtSession(session: InsertIrtSession): Promise<IrtSession>;
+  getIrtSessions(userId: string, limit?: number): Promise<IrtSession[]>;
   clearUserData(userId: string): Promise<void>;
 }
 
@@ -182,6 +184,20 @@ export class DbStorage implements IStorage {
     return rows[0];
   }
 
+  async createIrtSession(session: InsertIrtSession): Promise<IrtSession> {
+    const rows = await db.insert(irtSessions).values(session).returning();
+    return rows[0];
+  }
+
+  async getIrtSessions(userId: string, limit = 20): Promise<IrtSession[]> {
+    return db
+      .select()
+      .from(irtSessions)
+      .where(eq(irtSessions.userId, userId))
+      .orderBy(desc(irtSessions.createdAt))
+      .limit(limit);
+  }
+
   async clearUserData(userId: string): Promise<void> {
     await Promise.all([
       db.delete(healthMetrics).where(eq(healthMetrics.userId, userId)),
@@ -189,6 +205,7 @@ export class DbStorage implements IStorage {
       db.delete(aiChats).where(eq(aiChats.userId, userId)),
       db.delete(emotionReadings).where(eq(emotionReadings.userId, userId)),
       db.delete(dreamSymbols).where(eq(dreamSymbols.userId, userId)),
+      db.delete(irtSessions).where(eq(irtSessions.userId, userId)),
     ]);
   }
 }
@@ -201,6 +218,7 @@ export class MemStorage implements IStorage {
   private userSettingsMap: Map<string, UserSettings>;
   private emotionReadingsMap: Map<string, EmotionReading>;
   private dreamSymbolsMap: Map<string, DreamSymbol>;
+  private irtSessionsMap: Map<string, IrtSession>;
 
   constructor() {
     this.users = new Map();
@@ -210,6 +228,7 @@ export class MemStorage implements IStorage {
     this.userSettingsMap = new Map();
     this.emotionReadingsMap = new Map();
     this.dreamSymbolsMap = new Map();
+    this.irtSessionsMap = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -403,6 +422,27 @@ export class MemStorage implements IStorage {
     return symbol;
   }
 
+  async createIrtSession(session: InsertIrtSession): Promise<IrtSession> {
+    const id = randomUUID();
+    const row: IrtSession = {
+      id,
+      userId: session.userId || null,
+      originalDreamText: session.originalDreamText,
+      rewrittenEnding: session.rewrittenEnding,
+      rehearsalNote: session.rehearsalNote || null,
+      createdAt: new Date(),
+    };
+    this.irtSessionsMap.set(id, row);
+    return row;
+  }
+
+  async getIrtSessions(userId: string, limit = 20): Promise<IrtSession[]> {
+    return Array.from(this.irtSessionsMap.values())
+      .filter(s => s.userId === userId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, limit);
+  }
+
   async clearUserData(userId: string): Promise<void> {
     Array.from(this.healthMetricsMap.entries()).forEach(([key, val]) => {
       if (val.userId === userId) this.healthMetricsMap.delete(key);
@@ -418,6 +458,9 @@ export class MemStorage implements IStorage {
     });
     Array.from(this.dreamSymbolsMap.entries()).forEach(([key, val]) => {
       if (val.userId === userId) this.dreamSymbolsMap.delete(key);
+    });
+    Array.from(this.irtSessionsMap.entries()).forEach(([key, val]) => {
+      if (val.userId === userId) this.irtSessionsMap.delete(key);
     });
   }
 }
