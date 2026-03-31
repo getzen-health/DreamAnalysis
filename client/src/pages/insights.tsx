@@ -17,6 +17,7 @@ import {
 import { pageTransition } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
 import { EEGPeakHours } from "@/components/eeg-peak-hours";
+import { fetchLatestDreamContext } from "@/lib/dream-briefing-context";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -145,6 +146,10 @@ export default function Insights() {
       const avgFocus = yesterday.length > 0 ? yesterday.reduce((a: number, e: any) => a + (e.focus || 0.55), 0) / yesterday.length : 0.55;
       const avgValence = yesterday.length > 0 ? yesterday.reduce((a: number, e: any) => a + (e.valence || 0.55), 0) / yesterday.length : 0.55;
       if (!engineRef.current) return;
+
+      // Fetch last night's dream analysis to enrich briefing
+      const dreamContext = await fetchLatestDreamContext(userId);
+
       const newBriefing = await engineRef.current.generateMorningBriefing({
         sleepData: { totalHours: null, deepHours: null, remHours: null, efficiency: null, dataAvailability: "none" },
         morningHrv: null, hrvRange: null,
@@ -154,6 +159,7 @@ export default function Insights() {
         },
         patternSummaries: insights.map(i => i.headline),
         yesterdaySummary: `${yesterday.length} readings. Avg stress ${(avgStress * 100).toFixed(0)}%.`,
+        dreamContext,
       });
       setBriefing(newBriefing);
     } catch (e) {

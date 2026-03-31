@@ -30,6 +30,12 @@ export interface BriefingRequest {
   };
   patternSummaries: string[];
   yesterdaySummary: string;
+  dreamContext?: {
+    keyInsight: string | null;
+    themes: string[];
+    emotionalArc: string | null;
+    isSleepDistress: boolean;
+  } | null;
 }
 
 export interface BriefingResponse {

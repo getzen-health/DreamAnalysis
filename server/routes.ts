@@ -563,6 +563,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ── Morning briefing dream context helper (exported for tests) ───────────
+  /**
+   * Build the dream section of the morning briefing prompt.
+   * Returns empty string when no dream context is available.
+   */
+  function buildDreamContextSection(ctx?: {
+    keyInsight: string | null;
+    themes: string[];
+    emotionalArc: string | null;
+    isSleepDistress: boolean;
+  }): string {
+    if (!ctx) return "";
+    const parts: string[] = [];
+    if (ctx.themes.length > 0) {
+      parts.push(`Dream themes last night: ${ctx.themes.join(", ")}.`);
+    }
+    if (ctx.emotionalArc) {
+      parts.push(`Emotional arc: ${ctx.emotionalArc}.`);
+    }
+    if (ctx.keyInsight) {
+      parts.push(`Key insight from dream: "${ctx.keyInsight}".`);
+    }
+    if (ctx.isSleepDistress) {
+      parts.push("Note: last night's dream involved stress/threat content — factor in emotional recovery needs.");
+    }
+    return parts.length > 0 ? parts.join(" ") : "";
+  }
+
   // ── Multi-pass dream analysis helper ──────────────────────────────────────
   /**
    * Runs 3 sequential LLM passes over a dream text and returns a structured
@@ -5923,6 +5951,12 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
       }),
       patternSummaries: z.array(z.string().max(200)).max(10),
       yesterdaySummary: z.string().max(500),
+      dreamContext: z.object({
+        keyInsight: z.string().max(500).nullable(),
+        themes: z.array(z.string().max(100)).max(10),
+        emotionalArc: z.string().max(300).nullable(),
+        isSleepDistress: z.boolean(),
+      }).optional(),
     });
 
     app.post("/api/morning-briefing", async (req, res) => {
@@ -5968,6 +6002,9 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
         ? `Patterns discovered: ${body.patternSummaries.join("; ")}.`
         : "";
 
+      // Dream context section — omitted when not available
+      const dreamSection = buildDreamContextSection(body.dreamContext);
+
       const prompt = [
         "You are a personal wellness AI. Analyze today's morning data and provide a concise, actionable briefing.",
         sleepSection,
@@ -5977,6 +6014,7 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
         `Yesterday: ${body.yesterdaySummary || "No prior data."}`,
         `Emotion summary (last 24h): ${body.emotionSummary.readingCount} readings, avg stress ${(body.emotionSummary.avgStress * 100).toFixed(0)}%, avg focus ${(body.emotionSummary.avgFocus * 100).toFixed(0)}%, avg valence ${(body.emotionSummary.avgValence * 100).toFixed(0)}%, dominant emotion: ${body.emotionSummary.dominantLabel} for ${body.emotionSummary.dominantMinutes}min.`,
         patternText,
+        dreamSection,
         'Return ONLY valid JSON matching exactly: {"stateSummary": "<3 sentences>", "actions": ["<action1>", "<action2>", "<action3>"], "forecast": {"label": "<short label>", "probability": <0-1>, "reason": "<one sentence>"}}',
       ].filter(Boolean).join("\n");
 
