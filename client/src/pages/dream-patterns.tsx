@@ -31,6 +31,7 @@ import { WeeklySynthesisCard } from "@/components/weekly-synthesis-card";
 import { DreamHistoryCard } from "@/components/dream-history-card";
 import { EmotionalArcTrendCard } from "@/components/emotional-arc-trend-card";
 import { PresleepIntentionCard } from "@/components/presleep-intention-card";
+import { DreamRecallHeatmap } from "@/components/dream-recall-heatmap";
 import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
 import { renderDreamShareCard, type DreamShareData } from "@/lib/dream-share-card";
 import { shareImage } from "@/lib/share-utils";
@@ -820,6 +821,9 @@ export default function DreamPatterns() {
           {nightmareRecurrence && (
             <NightmareRecurrenceCard data={nightmareRecurrence} />
           )}
+
+          {/* Dream Recall Heatmap — 28-day calendar of recording consistency */}
+          <DreamRecallHeatmap userId={userId} />
 
           {/* Presleep Intention — set tonight's intention, track alignment with dreams */}
           <PresleepIntentionCard />
