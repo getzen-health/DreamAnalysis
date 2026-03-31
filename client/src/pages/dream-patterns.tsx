@@ -27,6 +27,7 @@ import { NightmareRecurrenceCard } from "@/components/nightmare-recurrence-card"
 import type { NightmareRecurrenceData } from "@/lib/nightmare-recurrence";
 import { DreamQualityCard } from "@/components/dream-quality-card";
 import type { DreamQualityTrend } from "@/lib/dream-quality-score";
+import { WeeklySynthesisCard } from "@/components/weekly-synthesis-card";
 import type { DreamEntry as ThemeTrackerEntry } from "@/lib/dream-theme-tracker";
 import { renderDreamShareCard, type DreamShareData } from "@/lib/dream-share-card";
 import { shareImage } from "@/lib/share-utils";
@@ -677,6 +678,9 @@ export default function DreamPatterns() {
       {/* ── HISTORICAL: Session-based charts ──────────────── */}
       {!isLiveToday && (
         <>
+          {/* Weekly Dream Synthesis — LLM-generated narrative from structured metadata */}
+          <WeeklySynthesisCard userId={userId} />
+
           {/* Dream Quality Score + 14-day sparkline */}
           {dreamQualityTrend && (
             <DreamQualityCard data={dreamQualityTrend} />

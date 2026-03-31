@@ -1266,6 +1266,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // POST /api/dream-weekly-synthesis/:userId — LLM synthesis of the week's dreams
+  app.post("/api/dream-weekly-synthesis/:userId", async (req, res) => {
+    try {
+      const { userId } = req.params;
+      if (!anthropic) {
+        return res.status(503).json({ message: "ANTHROPIC_API_KEY not configured" });
+      }
+
+      const dreams = await storage.getDreamAnalyses(userId, 50);
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const cutoff = Date.now() - 7 * DAY_MS;
+      const weekDreams = dreams
+        .filter((d) => new Date(d.timestamp).getTime() >= cutoff)
+        .map((d) => ({
+          date: new Date(d.timestamp).toISOString(),
+          themes: (d as unknown as { themes?: string[] | null }).themes ?? null,
+          emotionalArc: (d as unknown as { emotionalArc?: string | null }).emotionalArc ?? null,
+          keyInsight: (d as unknown as { keyInsight?: string | null }).keyInsight ?? null,
+          threatSimulationIndex: (d as unknown as { threatSimulationIndex?: number | null }).threatSimulationIndex ?? null,
+          symbols: Array.isArray((d as unknown as { symbols?: unknown[] }).symbols)
+            ? ((d as unknown as { symbols: unknown[] }).symbols as string[]).filter((s): s is string => typeof s === "string")
+            : null,
+        }));
+
+      if (weekDreams.length < 2) {
+        return res.status(400).json({
+          message: "Not enough dreams this week — record at least 2 dreams before generating a weekly synthesis.",
+          dreamCount: weekDreams.length,
+        });
+      }
+
+      // Build prompt using shared pure-function logic
+      const nightmares = weekDreams.filter((d) => (d.threatSimulationIndex ?? 0) > 0.5).length;
+      const themeFreq: Record<string, number> = {};
+      for (const d of weekDreams) {
+        for (const t of d.themes ?? []) {
+          if (t) themeFreq[t] = (themeFreq[t] ?? 0) + 1;
+        }
+      }
+      const topThemesInput = Object.entries(themeFreq)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 5)
+        .map(([t]) => t);
+
+      const contextLines = weekDreams.map((d, i) => {
+        const parts = [`Dream ${i + 1} (${d.date.slice(0, 10)})`];
+        const th = d.themes?.filter(Boolean) ?? [];
+        if (th.length > 0) parts.push(`themes: ${th.join(", ")}`);
+        if (d.emotionalArc?.trim()) parts.push(`arc: ${d.emotionalArc.trim()}`);
+        if (d.keyInsight?.trim()) parts.push(`insight: "${d.keyInsight.trim()}"`);
+        const sym = d.symbols?.filter(Boolean) ?? [];
+        if (sym.length > 0) parts.push(`symbols: ${sym.slice(0, 3).join(", ")}`);
+        if ((d.threatSimulationIndex ?? 0) > 0.5) parts.push("(nightmare)");
+        return parts.join(" | ");
+      });
+
+      const userMsg =
+        `Here is this week's dream data (${weekDreams.length} dream${weekDreams.length !== 1 ? "s" : ""}, ${nightmares} nightmare${nightmares !== 1 ? "s" : ""}):\n\n` +
+        contextLines.join("\n") +
+        (topThemesInput.length > 0 ? `\n\nTop recurring themes: ${topThemesInput.join(", ")}.` : "") +
+        '\n\nWrite a concise synthesis (2-3 paragraphs) that: (1) identifies the dominant emotional or psychological thread, (2) highlights any patterns worth the dreamer\'s attention, and (3) offers one actionable suggestion. Return ONLY valid JSON: {"synthesis":"<paragraphs>","topThemes":["<theme1>","<theme2>","<theme3>"]}';
+
+      const r = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 800,
+        system: "You are a compassionate dream therapist and researcher. Synthesize a week of dream metadata into a warm, insightful report. Do not invent content not present in the data.",
+        messages: [{ role: "user", content: userMsg }],
+      });
+
+      const raw = r.content[0].type === "text" ? r.content[0].text : "{}";
+      let parsed: { synthesis?: string; topThemes?: string[] } = {};
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+      } catch { /* keep empty */ }
+
+      return res.json({
+        synthesis: parsed.synthesis ?? "Unable to generate synthesis — please try again.",
+        topThemes: parsed.topThemes ?? topThemesInput.slice(0, 3),
+        dreamCount: weekDreams.length,
+        nightmareCount: nightmares,
+        generatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, "dream-weekly-synthesis POST failed");
+      return res.status(500).json({ message: "Failed to generate weekly synthesis" });
+    }
+  });
+
   // AI chat endpoints — no auth gate (data scoped by userId, APK uses localStorage IDs)
   app.get("/api/ai-chat/:userId", async (req, res) => {
     try {
