@@ -65,7 +65,10 @@ interface DreamPatternData {
   themes: { name: string; count: number }[];
   symbols: { name: string; count: number }[];
   sentimentTrend: { date: string; valence: number }[];
-  topInsights: (string | null)[];
+  topInsights: Array<{ insight: string | null; keyInsight: string | null; date: string }>;
+  nightmareCount?: number;
+  nightmareDates?: string[];
+  counts?: { last7: number; last30: number; last90: number };
 }
 
 const STAGE_NAMES = ["N3 (Deep)", "N2 (Light)", "N1", "REM", "Wake"];
@@ -644,10 +647,24 @@ export default function DreamPatterns() {
                 </span>
               </div>
 
+              {/* 7 / 30 / 90 day counts */}
+              {dreamPatterns.counts && (
+                <div className="flex gap-3 mb-3">
+                  {(["last7", "last30", "last90"] as const).map((key) => (
+                    <div key={key} className="flex-1 text-center rounded-lg bg-muted/30 py-1.5">
+                      <p className="text-base font-semibold text-foreground">{dreamPatterns.counts![key]}</p>
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-wide">
+                        {key === "last7" ? "7d" : key === "last30" ? "30d" : "90d"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-3">
                 {dreamPatterns.themes.length > 0 && (
                   <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Top Emotions</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Top Themes</p>
                     <div className="flex flex-wrap gap-1.5">
                       {dreamPatterns.themes.slice(0, 3).map((t) => (
                         <span
@@ -677,11 +694,25 @@ export default function DreamPatterns() {
                   </div>
                 )}
 
-                {dreamPatterns.topInsights[0] && (
+                {/* Nightmare frequency */}
+                {(dreamPatterns.nightmareCount ?? 0) > 0 && (
+                  <div className="flex items-center gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2">
+                    <Moon className="h-3.5 w-3.5 text-destructive shrink-0" />
+                    <p className="text-[11px] text-destructive">
+                      {dreamPatterns.nightmareCount} nightmare{dreamPatterns.nightmareCount !== 1 ? "s" : ""} in this period
+                    </p>
+                  </div>
+                )}
+
+                {/* Key insight from most-recent dream with one */}
+                {dreamPatterns.topInsights[0] && (dreamPatterns.topInsights[0].keyInsight || dreamPatterns.topInsights[0].insight) && (
                   <blockquote className="border-l-2 border-secondary/40 pl-3 mt-2">
                     <p className="text-xs text-muted-foreground italic leading-relaxed line-clamp-3">
-                      {dreamPatterns.topInsights[0]}
+                      {dreamPatterns.topInsights[0].keyInsight ?? dreamPatterns.topInsights[0].insight}
                     </p>
+                    {dreamPatterns.topInsights[0].date && (
+                      <p className="text-[10px] text-muted-foreground/60 mt-1">{dreamPatterns.topInsights[0].date}</p>
+                    )}
                   </blockquote>
                 )}
               </div>
