@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   ArrowRight, Mic, Brain, Moon, Wind, Activity, Zap,
   TrendingUp, Sparkles, ChevronRight, Apple,
-  Eye, BarChart2, Check, X, Smartphone, Play
+  Eye, BarChart2, Check, X, Smartphone, Play, ChevronLeft
 } from "lucide-react";
 
 /* ─── Scroll progress bar ─── */
@@ -487,6 +487,43 @@ function AIQuote({ screen, quote, color }: { screen: string; quote: string; colo
   );
 }
 
+/* ─── Drag-scroll carousel ─── */
+function DragScroll({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isDown = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+  const onDown = (e: React.MouseEvent) => {
+    isDown.current = true;
+    startX.current = e.pageX - (ref.current?.offsetLeft ?? 0);
+    scrollLeft.current = ref.current?.scrollLeft ?? 0;
+    if (ref.current) ref.current.style.cursor = "grabbing";
+  };
+  const onUp = () => { isDown.current = false; if (ref.current) ref.current.style.cursor = "grab"; };
+  const onMove = (e: React.MouseEvent) => {
+    if (!isDown.current) return;
+    e.preventDefault();
+    const x = e.pageX - (ref.current?.offsetLeft ?? 0);
+    const walk = (x - startX.current) * 1.4;
+    if (ref.current) ref.current.scrollLeft = scrollLeft.current - walk;
+  };
+  const scroll = (dir: number) => { if (ref.current) ref.current.scrollBy({ left: dir * 380, behavior: "smooth" }); };
+  return (
+    <div style={{ position: "relative" }}>
+      <button onClick={() => scroll(-1)} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", zIndex: 10, width: 42, height: 42, borderRadius: "50%", background: "rgba(7,8,15,.9)", border: "1px solid rgba(255,255,255,.12)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+        <ChevronLeft size={18} color="rgba(255,255,255,.7)" />
+      </button>
+      <button onClick={() => scroll(1)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", zIndex: 10, width: 42, height: 42, borderRadius: "50%", background: "rgba(7,8,15,.9)", border: "1px solid rgba(255,255,255,.12)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+        <ChevronRight size={18} color="rgba(255,255,255,.7)" />
+      </button>
+      <div ref={ref} onMouseDown={onDown} onMouseLeave={onUp} onMouseUp={onUp} onMouseMove={onMove}
+        style={{ overflowX: "auto", cursor: "grab", scrollbarWidth: "none", msOverflowStyle: "none" } as React.CSSProperties}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════
    PAGE
 ═══════════════════════════════════════ */
@@ -787,107 +824,240 @@ export default function Page() {
 
       <hr className="divider" />
 
-      {/* ── What the AI tells you — image cards ── */}
-      <section style={{ padding: "80px 32px", maxWidth: 1140, margin: "0 auto" }}>
-        <Reveal>
-          <div style={{ textAlign: "center", marginBottom: 52 }}>
-            <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Sparkles size={10} />Real AI insights</div>
-            <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,46px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.1, marginBottom: 14 }}>
-              What GetZen actually <span className="g">tells you</span>
-            </h2>
+      {/* ── What the AI tells you — insight stream ── */}
+      <section style={{ padding: "90px 32px", maxWidth: 1140, margin: "0 auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 72, alignItems: "start" }}>
+          {/* Left — sticky heading */}
+          <Reveal>
+            <div style={{ position: "sticky", top: 96 }}>
+              <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Sparkles size={10} />Real AI insights</div>
+              <h2 className="font-display" style={{ fontSize: "clamp(28px,3.5vw,50px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.05, marginBottom: 18 }}>
+                What GetZen<br />actually <span className="g">tells you</span>
+              </h2>
+              <p style={{ fontSize: 15, color: "rgba(226,232,240,.38)", lineHeight: 1.7, maxWidth: 320, marginBottom: 36 }}>
+                Every morning, five AI models run in parallel. This is what they report back — not generic advice, but your specific patterns.
+              </p>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#34D399", boxShadow: "0 0 10px #34D399", animation: "pulse 2s ease-in-out infinite" }} />
+                <span style={{ fontSize: 10.5, color: "rgba(255,255,255,.28)", letterSpacing: ".1em", textTransform: "uppercase" }}>Live AI · Updated daily</span>
+              </div>
+            </div>
+          </Reveal>
+          {/* Right — insight cards */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {([
+              { icon: <Mic size={17} color="#34D399" />, label: "Voice AI", time: "8:14 am today", color: "#34D399", quote: "Stress markers dropped 23% this week. Vocal clarity suggests high confidence — your peak focus window opens at 9am.", badge: "Focus ↑ 23%", sub: "Stress · tone · energy · clarity" },
+              { icon: <Moon size={17} color="#a78bfa" />, label: "Dream AI", time: "decoded last night", color: "#a78bfa", quote: "Water and movement appeared in 3 of your last 5 dreams. This pattern correlates strongly with active change-seeking.", badge: "Pattern detected", sub: "Symbols · recurring themes · emotion" },
+              { icon: <Apple size={17} color="#fb923c" />, label: "Nutrition AI", time: "this week", color: "#fb923c", quote: "Salmon twice this week — your focus score ran 21% above average on both days. Omega-3 link confirmed.", badge: "Food–mood link", sub: "6 eating states · meal impact" },
+              { icon: <Activity size={17} color="#22D3EE" />, label: "Sleep AI", time: "this morning", color: "#22D3EE", quote: "Deep sleep arrived 14 minutes faster than your baseline. Your 4-7-8 breathwork session before bed contributed.", badge: "Deep sleep ↑", sub: "REM · deep · light · 92.98% accurate" },
+              { icon: <TrendingUp size={17} color="#a78bfa" />, label: "Emotion AI", time: "this month", color: "#a78bfa", quote: "Mood stability is up 31% from last month. Cross-signal analysis points to improved sleep consistency as the key driver.", badge: "Stability ↑ 31%", sub: "Daily mood · longitudinal patterns" },
+            ] as const).map((ins, i) => (
+              <Reveal key={i} delay={i * 65} y={16}>
+                <div className="bento" style={{ padding: "18px 22px", borderLeft: `3px solid ${ins.color}45`, borderTopLeftRadius: 4, borderBottomLeftRadius: 4, transition: "border-left-color .25s, transform .25s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderLeftColor = ins.color; (e.currentTarget as HTMLDivElement).style.transform = "translateX(5px)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderLeftColor = `${ins.color}45`; (e.currentTarget as HTMLDivElement).style.transform = "translateX(0)"; }}
+                >
+                  <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 10, background: `${ins.color}14`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{ins.icon}</div>
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: ins.color }}>{ins.label}</p>
+                        <p style={{ fontSize: 9, color: "rgba(255,255,255,.22)", marginTop: 1, letterSpacing: ".04em" }}>{ins.sub}</p>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <span style={{ fontSize: 9.5, color: "rgba(255,255,255,.2)" }}>{ins.time}</span>
+                      <span style={{ padding: "3px 10px", borderRadius: 999, background: `${ins.color}14`, border: `1px solid ${ins.color}28`, fontSize: 10.5, fontWeight: 700, color: ins.color, whiteSpace: "nowrap" }}>{ins.badge}</span>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 13.5, color: "rgba(226,232,240,.68)", lineHeight: 1.62, fontStyle: "italic" }}>&ldquo;{ins.quote}&rdquo;</p>
+                </div>
+              </Reveal>
+            ))}
           </div>
-        </Reveal>
-        {/* Row 1 — 3 equal */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <Reveal delay={0} y={20}><InsightCard id="photo-1526374965328-7f61d4dc18c5" h={320} color="#34D399" screen="Voice" quote="Stress markers dropped 23% this week. Peak focus: 9–11am." /></Reveal>
-          <Reveal delay={100} y={20}><InsightCard id="photo-1534796636912-3b95b3ab5986" h={320} color="#a78bfa" screen="Dream" quote="Water & movement in 3 of 5 dreams — correlates with change-seeking." /></Reveal>
-          <Reveal delay={200} y={20}><InsightCard id="photo-1498837167922-ddd27525d352" h={320} color="#fb923c" screen="Nutrition" quote="Salmon twice this week — focus score 21% above average both days." /></Reveal>
-        </div>
-        {/* Row 2 — wide + narrow */}
-        <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 14 }}>
-          <Reveal delay={0} y={20}><InsightCard id="photo-1515649651127-caaa79b56f5f" h={300} color="#22D3EE" screen="Sleep" quote="Deep sleep 14 min faster than baseline. 4-7-8 breathing contributed." /></Reveal>
-          <Reveal delay={120} y={20}><InsightCard id="photo-1531746020798-e6953c6e8e04" h={300} color="#34D399" screen="Emotion" quote="Mood 31% more stable this month. Sleep consistency is the key driver." /></Reveal>
         </div>
       </section>
 
       <hr className="divider" />
 
-      {/* ── How it works — image steps ── */}
-      <section id="science" style={{ padding: "80px 32px" }}>
-        <div style={{ maxWidth: 1140, margin: "0 auto" }}>
+      {/* ── Morning ritual — cinematic alternating rows ── */}
+      <section style={{ padding: "0" }}>
+        <div style={{ maxWidth: 1140, margin: "0 auto", padding: "80px 32px 40px" }}>
           <Reveal>
-            <div style={{ textAlign: "center", marginBottom: 52 }}>
+            <div style={{ textAlign: "center", marginBottom: 64 }}>
               <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><TrendingUp size={10} />The morning ritual</div>
-              <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,48px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.1, marginBottom: 14 }}>
+              <h2 className="font-display" style={{ fontSize: "clamp(28px,4vw,52px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.05, marginBottom: 14 }}>
                 Five minutes.<br /><span className="g">Clarity all day.</span>
               </h2>
             </div>
           </Reveal>
-          {/* 4 step images */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
-            <StepCard id="photo-1516321497487-e288fb19713f" h={420} n="01" color="#34D399" title="Speak" caption="30 seconds of your voice. AI reads your stress, energy & emotion." />
-            <StepCard id="photo-1517842645767-c639042777db" h={420} n="02" color="#a78bfa" title="Dream Log" caption="Jot fragments. AI decodes the emotional story overnight." />
-            <StepCard id="photo-1484723091739-30990688934a" h={420} n="03" color="#fb923c" title="Eat & Note" caption="Log your meals. See exactly how food moves your mood." />
-            <StepCard id="photo-1551288049-bebda4e38f71" h={420} n="04" color="#22D3EE" title="Read Report" caption="Your daily brain report. Readiness score + peak focus window." />
-          </div>
         </div>
-      </section>
-
-      <hr className="divider" />
-
-      {/* ── Built for real life ── */}
-      <section style={{ padding: "80px 32px" }}>
-        <div style={{ maxWidth: 1140, margin: "0 auto" }}>
-          <Reveal>
-            <div style={{ textAlign: "center", marginBottom: 48 }}>
-              <h2 className="font-display" style={{ fontSize: "clamp(24px,3.5vw,44px)", fontWeight: 800, letterSpacing: "-.02em", marginBottom: 12 }}>Built for <span className="g">real life</span></h2>
-              <p style={{ fontSize: 15, color: "rgba(226,232,240,.4)", maxWidth: 400, margin: "0 auto" }}>Your phone, your voice, your morning. No wearable. No lab.</p>
+        {([
+          { n: "01", color: "#34D399", title: "Speak", sub: "30 seconds. Your voice knows.", desc: "Each morning, speak freely for half a minute. GetZen's voice AI extracts stress markers, emotional tone, and energy from acoustic patterns — no wearable, no typing, no effort.", img: "photo-1516321497487-e288fb19713f", tags: ["Stress level", "Emotional tone", "Energy index", "Voice clarity"] },
+          { n: "02", color: "#a78bfa", title: "Dream Log", sub: "Fragments. The AI reads the story.", desc: "Jot down anything — even a single word. GetZen decodes the emotional narrative beneath your symbols, recurring themes, and subconscious signals collected overnight.", img: "photo-1517842645767-c639042777db", tags: ["Symbol analysis", "Emotion themes", "Pattern history", "REM correlation"] },
+          { n: "03", color: "#fb923c", title: "Eat & Note", sub: "Log it. Watch your mood shift.", desc: "Track your meals and GetZen reveals the food–mood correlations no nutrition app has ever shown you. Six eating states. Meal-by-meal mood impact. Across weeks and months.", img: "photo-1484723091739-30990688934a", tags: ["6 eating states", "Focus correlation", "Mood history", "Nutrient links"] },
+          { n: "04", color: "#22D3EE", title: "Read Your Report", sub: "Everything unified. Every morning.", desc: "Your daily Brain Report synthesizes all 16 ML models: readiness score, peak focus window, sleep quality, mood trajectory — one clear picture of your inner world.", img: "photo-1551288049-bebda4e38f71", tags: ["Readiness score", "Peak focus time", "Cross-signal AI", "7 biometric layers"] },
+        ] as const).map((step, i) => (
+          <Reveal key={step.n} y={40}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: 480, marginBottom: 3, overflow: "hidden" }}>
+              {/* Photo side */}
+              <div style={{ order: i % 2 === 0 ? 1 : 2, position: "relative", overflow: "hidden" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`https://images.unsplash.com/${step.img}?w=900&q=85&fit=crop&auto=format`} alt={step.title}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform .7s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.05)")}
+                  onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
+                />
+                <div style={{ position: "absolute", inset: 0, background: i % 2 === 0 ? "linear-gradient(to right,transparent 45%,rgba(7,8,15,.95) 100%)" : "linear-gradient(to left,transparent 45%,rgba(7,8,15,.95) 100%)" }} />
+                <div style={{ position: "absolute", [i % 2 === 0 ? "bottom" : "bottom"]: -10, [i % 2 === 0 ? "right" : "left"]: -8, lineHeight: 1, userSelect: "none", pointerEvents: "none" }}>
+                  <span className="font-display" style={{ fontSize: "clamp(100px,14vw,180px)", fontWeight: 900, color: `${step.color}18`, letterSpacing: "-.06em", display: "block" }}>{step.n}</span>
+                </div>
+              </div>
+              {/* Text side */}
+              <div style={{ order: i % 2 === 0 ? 2 : 1, padding: "64px 60px", display: "flex", flexDirection: "column", justifyContent: "center", background: i % 2 === 0 ? "rgba(10,14,28,.92)" : "rgba(13,17,34,.92)" }}>
+                <span className="font-display" style={{ fontSize: 11, fontWeight: 900, color: step.color, letterSpacing: ".16em", textTransform: "uppercase", marginBottom: 16 }}>Step {step.n}</span>
+                <h3 className="font-display" style={{ fontSize: "clamp(26px,3.5vw,48px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.05, marginBottom: 10 }}>{step.title}</h3>
+                <p style={{ fontSize: 14, fontWeight: 600, color: step.color, marginBottom: 18, opacity: .85 }}>{step.sub}</p>
+                <p style={{ fontSize: 15, color: "rgba(226,232,240,.45)", lineHeight: 1.8, maxWidth: 420, marginBottom: 28 }}>{step.desc}</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {step.tags.map(t => (
+                    <span key={t} style={{ padding: "5px 14px", borderRadius: 999, background: `${step.color}10`, border: `1px solid ${step.color}22`, fontSize: 11, fontWeight: 600, color: step.color, letterSpacing: ".04em" }}>{t}</span>
+                  ))}
+                </div>
+              </div>
             </div>
           </Reveal>
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
-            <LifeCard id="photo-1573496359142-b8d87734a5a2" alt="Talking and voice analysis" h={340} icon={<Mic size={14} color="#34D399" />} label="Voice" caption="Talk for 30 seconds. We read your emotion." accent="#34D399" />
-            <LifeCard id="photo-1476480862126-209bfaa8edc8" alt="Morning run" h={340} icon={<Activity size={14} color="#22D3EE" />} label="Move" caption="Log your workout. See how it shifts your mood." accent="#22D3EE" />
-            <LifeCard id="photo-1547592180-85f173990554" alt="Mindful eating" h={340} icon={<Apple size={14} color="#fb923c" />} label="Eat" caption="Every meal tells a story about how you feel." accent="#fb923c" />
+        ))}
+      </section>
+
+      <hr className="divider" />
+
+      {/* ── Built for real life — horizontal carousel ── */}
+      <section style={{ padding: "80px 0" }}>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 48, padding: "0 32px" }}>
+            <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Zap size={10} />Built for real life</div>
+            <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,50px)", fontWeight: 800, letterSpacing: "-.025em", marginBottom: 12 }}>Your phone.<br />Your <span className="g">morning ritual.</span></h2>
+            <p style={{ fontSize: 15, color: "rgba(226,232,240,.35)", maxWidth: 380, margin: "0 auto" }}>No wearable. No lab. No friction. Just open GetZen.</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 14 }}>
-            <LifeCard id="photo-1544367567-0f2fcb009e0b" alt="Breathing exercise" h={300} icon={<Wind size={14} color="#a78bfa" />} label="Breathe" caption="Stressed? 7 guided sessions calm you in minutes." accent="#a78bfa" />
-            <LifeCard id="photo-1508672019048-805c876b67e2" alt="Being mindful" h={300} icon={<Sparkles size={14} color="#34D399" />} label="Be Mindful" caption="GetZen keeps you aware of your inner world — every day." accent="#34D399" />
+        </Reveal>
+        <DragScroll>
+          <div style={{ display: "flex", gap: 14, padding: "0 40px 24px", width: "max-content" }}>
+            {([
+              { id: "photo-1573496359142-b8d87734a5a2", icon: <Mic size={16} color="#34D399" />, label: "Voice Check-in", caption: "Speak for 30 seconds. We read stress, energy, and emotion from your voice alone.", accent: "#34D399", sub: "Every morning · 30 sec" },
+              { id: "photo-1476480862126-209bfaa8edc8", icon: <Activity size={16} color="#22D3EE" />, label: "Movement", caption: "Log a workout and instantly see how physical activity shifts your mood and recovery.", accent: "#22D3EE", sub: "Post-workout mood shift" },
+              { id: "photo-1547592180-85f173990554", icon: <Apple size={16} color="#fb923c" />, label: "Mindful Eating", caption: "Every meal is tracked for its mood impact. GetZen shows the food-emotion link in real time.", accent: "#fb923c", sub: "6 eating states detected" },
+              { id: "photo-1544367567-0f2fcb009e0b", icon: <Wind size={16} color="#a78bfa" />, label: "Breathwork", caption: "Stressed? 7 guided breathing exercises — box, 4-7-8, coherence — calm you in minutes.", accent: "#a78bfa", sub: "HRV-guided · 7 exercises" },
+              { id: "photo-1508672019048-805c876b67e2", icon: <Sparkles size={16} color="#34D399" />, label: "Daily Awareness", caption: "GetZen keeps a live picture of your inner world — mood, patterns, and long-term trends.", accent: "#34D399", sub: "Longitudinal · always on" },
+            ] as const).map((card, i) => (
+              <div key={i} style={{ position: "relative", width: 320, height: 480, borderRadius: 24, overflow: "hidden", flexShrink: 0 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`https://images.unsplash.com/${card.id}?w=700&q=80&fit=crop&auto=format`} alt={card.label}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform .6s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.06)")}
+                  onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
+                />
+                <div style={{ position: "absolute", inset: 0, background: `linear-gradient(to top, rgba(7,8,15,.96) 0%, rgba(7,8,15,.4) 55%, rgba(7,8,15,.1) 100%)` }} />
+                {/* Index number */}
+                <div style={{ position: "absolute", top: 20, right: 20 }}>
+                  <span className="font-display" style={{ fontSize: 11, fontWeight: 900, color: card.accent, letterSpacing: ".12em" }}>0{i + 1}</span>
+                </div>
+                {/* Content */}
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "24px 22px" }}>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 12px", borderRadius: 999, background: `${card.accent}18`, border: `1px solid ${card.accent}35`, marginBottom: 10 }}>
+                    {card.icon}
+                    <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", color: card.accent }}>{card.label}</span>
+                  </div>
+                  <p style={{ fontSize: 13.5, color: "rgba(255,255,255,.82)", lineHeight: 1.55, marginBottom: 10 }}>{card.caption}</p>
+                  <p style={{ fontSize: 10, color: "rgba(255,255,255,.28)", letterSpacing: ".06em" }}>{card.sub}</p>
+                </div>
+              </div>
+            ))}
           </div>
+        </DragScroll>
+        <div style={{ textAlign: "center", marginTop: 10 }}>
+          <span style={{ fontSize: 11, color: "rgba(255,255,255,.18)", letterSpacing: ".08em" }}>← drag to explore →</span>
         </div>
       </section>
 
       <hr className="divider" />
 
-      {/* ── Compare ── */}
-      <section id="compare" style={{ padding: "80px 32px", background: "rgba(255,255,255,.01)" }}>
-        <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <div style={{ textAlign: "center", marginBottom: 52 }}>
+      {/* ── Compare — two-panel showdown ── */}
+      <section id="compare" style={{ padding: "90px 32px", background: "rgba(255,255,255,.01)" }}>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 56 }}>
             <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Eye size={10} />How we compare</div>
-            <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,44px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.1, marginBottom: 12 }}>
+            <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,48px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.05, marginBottom: 14 }}>
               Nothing else does <span className="g">all of this</span>
             </h2>
+            <p style={{ fontSize: 15, color: "rgba(226,232,240,.35)", maxWidth: 420, margin: "0 auto" }}>
+              GetZen is 8 apps in one. Built for people who want the full picture — not one slice of it.
+            </p>
           </div>
-          <div className="glass-bright" style={{ padding: "28px 32px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 16, marginBottom: 10, paddingBottom: 10, borderBottom: "1px solid rgba(255,255,255,.06)" }}>
-              <span style={{ fontSize: 11, color: "rgba(255,255,255,.2)", letterSpacing: ".1em", textTransform: "uppercase" }}>Capability</span>
-              <div style={{ width: 80, textAlign: "center" }}>
+        </Reveal>
+        <div style={{ maxWidth: 900, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          {/* GetZen panel */}
+          <Reveal delay={0} y={24}>
+            <div style={{ background: "linear-gradient(135deg,rgba(52,211,153,.09),rgba(34,211,238,.05))", border: "1px solid rgba(52,211,153,.3)", borderRadius: 24, padding: "36px 32px", boxShadow: "0 0 60px rgba(52,211,153,.08)", height: "100%" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/logo.png" alt="GetZen" style={{ width: 28, height: 28, objectFit: "cover", borderRadius: "50%", border: "1.5px solid rgba(52,211,153,.3)" }} />
+                <img src="/logo.png" alt="GetZen" style={{ width: 38, height: 38, borderRadius: "50%", objectFit: "cover", border: "2px solid rgba(52,211,153,.4)" }} />
+                <div>
+                  <p className="font-display" style={{ fontSize: 15, fontWeight: 800, color: "#34D399" }}>GetZen</p>
+                  <p style={{ fontSize: 10, color: "rgba(52,211,153,.55)", letterSpacing: ".06em" }}>16 ML models · all-in-one</p>
+                </div>
               </div>
-              <div style={{ width: 80, textAlign: "center" }}>
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,.2)", fontWeight: 600 }}>Others*</span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  "Voice emotion analysis","Dream decoding with AI","Food–mood correlation",
+                  "Sleep staging · 92.98% acc.","Daily brain report","Peak focus forecasting",
+                  "EEG neurofeedback (Muse)","Cycle-aware insights",
+                  "Breathwork with HRV","Emotion tracking","Sleep duration",
+                ].map((label) => (
+                  <div key={label} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", borderRadius: 12, background: "rgba(52,211,153,.07)", border: "1px solid rgba(52,211,153,.14)" }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 8, background: "rgba(52,211,153,.15)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Check size={13} color="#34D399" strokeWidth={2.5} />
+                    </div>
+                    <span style={{ fontSize: 13, color: "rgba(226,232,240,.82)", flex: 1 }}>{label}</span>
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#34D399", boxShadow: "0 0 6px #34D399" }} />
+                  </div>
+                ))}
               </div>
             </div>
-            {[
-              ["Voice emotion analysis",true,false],["Dream decoding with AI",true,false],["Food–mood correlation",true,false],
-              ["Sleep staging (92.98% accuracy)",true,false],["Daily unified brain report",true,false],
-              ["Peak focus forecasting",true,false],["EEG neurofeedback (Muse)",true,false],
-              ["Cycle-aware insights",true,false],["Breathwork with HRV guidance",true,true],
-              ["Mood & emotion tracking",true,true],["Sleep duration tracking",true,true],
-            ].map(([l,u,t]) => <CRow key={l as string} label={l as string} us={u as boolean} them={t as boolean} />)}
-          </div>
-          <p style={{ fontSize: 11.5, color: "rgba(255,255,255,.18)", textAlign: "center", marginTop: 16 }}>*Calm, Headspace, Oura, and Muse — none offers all of the above in one app</p>
+          </Reveal>
+          {/* Others panel */}
+          <Reveal delay={120} y={24}>
+            <div style={{ background: "rgba(255,255,255,.02)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 24, padding: "36px 32px", height: "100%" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
+                <div style={{ width: 38, height: 38, borderRadius: "50%", background: "rgba(255,255,255,.06)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(255,255,255,.1)" }}>
+                  <span style={{ fontSize: 14, color: "rgba(255,255,255,.3)" }}>★</span>
+                </div>
+                <div>
+                  <p className="font-display" style={{ fontSize: 15, fontWeight: 800, color: "rgba(255,255,255,.4)" }}>The Rest</p>
+                  <p style={{ fontSize: 10, color: "rgba(255,255,255,.2)", letterSpacing: ".06em" }}>Calm · Headspace · Oura · Muse</p>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  ["Voice emotion analysis", false],["Dream decoding with AI", false],["Food–mood correlation", false],
+                  ["Sleep staging", false],["Daily brain report", false],["Peak focus forecasting", false],
+                  ["EEG neurofeedback", false],["Cycle-aware insights", false],
+                  ["Breathwork", true],["Emotion tracking", true],["Sleep duration", true],
+                ].map(([label, has]) => (
+                  <div key={label as string} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 14px", borderRadius: 12, background: has ? "rgba(255,255,255,.03)" : "transparent", border: `1px solid ${has ? "rgba(255,255,255,.07)" : "transparent"}`, opacity: has ? 1 : 0.35 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 8, background: "rgba(255,255,255,.06)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      {has ? <Check size={13} color="rgba(255,255,255,.4)" strokeWidth={2.5} /> : <X size={12} color="rgba(255,255,255,.2)" strokeWidth={2} />}
+                    </div>
+                    <span style={{ fontSize: 13, color: has ? "rgba(255,255,255,.5)" : "rgba(255,255,255,.25)", flex: 1, textDecoration: has ? "none" : "line-through", textDecorationColor: "rgba(255,255,255,.15)" }}>{label as string}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Reveal>
         </div>
+        <Reveal>
+          <p style={{ fontSize: 11.5, color: "rgba(255,255,255,.18)", textAlign: "center", marginTop: 20 }}>*No single competitor offers all 11 capabilities. GetZen is the only all-in-one.</p>
+        </Reveal>
       </section>
 
       <hr className="divider" />
