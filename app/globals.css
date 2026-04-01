@@ -99,6 +99,12 @@ body {
 @keyframes spin-slow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
 @keyframes gradshift { 0%,100%{filter:hue-rotate(0deg)} 50%{filter:hue-rotate(30deg)} }
 @keyframes borderGlow { 0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,0)} 50%{box-shadow:0 0 0 3px rgba(52,211,153,.18)} }
+@keyframes wavePulse  { 0%,100%{transform:scaleY(1);opacity:.55} 50%{transform:scaleY(1.55);opacity:1} }
+@keyframes rotateWord { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+@keyframes particleDrift { 0%,100%{transform:translate(0,0) scale(1);opacity:.25} 50%{transform:translate(var(--dx,18px),var(--dy,-22px)) scale(1.15);opacity:.55} }
+@keyframes drawSVG { from{stroke-dashoffset:800} to{stroke-dashoffset:0} }
+@keyframes scanline { 0%{transform:translateY(-100%)} 100%{transform:translateY(400%)} }
+@keyframes numberGlow { 0%,100%{text-shadow:0 0 0 transparent} 50%{text-shadow:0 0 28px rgba(52,211,153,.6)} }
 
 .a-mesh1   { animation: mesh1     22s ease-in-out infinite; }
 .a-mesh2   { animation: mesh2     28s ease-in-out infinite; }
@@ -113,6 +119,9 @@ body {
 .a-grad    { animation: gradshift  8s ease-in-out infinite; }
 .a-border  { animation: borderGlow 3s ease-in-out infinite; }
 .a-fadeup  { animation: fadeUp    .7s ease both; }
+.a-wave    { animation: wavePulse var(--dur,1s) ease-in-out var(--del,0s) infinite; }
+.a-particle{ animation: particleDrift var(--pdur,14s) ease-in-out infinite; }
+.a-numglow { animation: numberGlow 2.5s ease-in-out infinite; }
 
 /* ── Shimmer text ── */
 .shimmer {
@@ -200,6 +209,32 @@ body::before {
   border-color: rgba(52,211,153,.2);
   transform: translateY(-4px);
   box-shadow: 0 24px 60px rgba(0,0,0,.3), 0 0 0 1px rgba(52,211,153,.08);
+}
+
+/* ── Testimonial card ── */
+.tcard {
+  background: rgba(15,20,40,0.5);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 20px;
+  transition: border-color .35s, transform .3s, box-shadow .35s;
+}
+.tcard:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 28px 64px rgba(0,0,0,.35);
+}
+
+/* ── Scan line on phone screens ── */
+.scanline-wrap { position: relative; overflow: hidden; }
+.scanline-wrap::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, rgba(52,211,153,.04), transparent);
+  animation: scanline 4s linear infinite;
+  pointer-events: none;
 }
 
 /* ── Platform badge ── */

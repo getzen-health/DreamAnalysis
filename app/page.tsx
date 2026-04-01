@@ -6,6 +6,125 @@ import {
   Eye, BarChart2, Check, X, Smartphone, Play
 } from "lucide-react";
 
+/* ─── Scroll progress bar ─── */
+function ScrollProgress() {
+  const [pct, setPct] = useState(0);
+  useEffect(() => {
+    const update = () => {
+      const d = document.documentElement;
+      setPct((d.scrollTop / (d.scrollHeight - d.clientHeight)) * 100);
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, []);
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, height: 2, width: `${pct}%`, background: "linear-gradient(90deg,#34D399,#22D3EE,#a78bfa)", zIndex: 9999, transition: "width .08s linear", pointerEvents: "none" }} />
+  );
+}
+
+/* ─── Word rotator for hero ─── */
+function WordRotator({ words }: { words: string[] }) {
+  const [idx, setIdx] = useState(0);
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setVisible(false);
+      setTimeout(() => { setIdx(i => (i + 1) % words.length); setVisible(true); }, 300);
+    }, 2400);
+    return () => clearInterval(t);
+  }, [words.length]);
+  return (
+    <span style={{ display: "inline-block", opacity: visible ? 1 : 0, transform: visible ? "translateY(0)" : "translateY(10px)", transition: "opacity .3s ease, transform .3s ease" }}>
+      {words[idx]}
+    </span>
+  );
+}
+
+/* ─── Animated voice waveform ─── */
+function AnimatedWaveform({ color = "#34D399", bars = 28 }: { color?: string; bars?: number }) {
+  const heights = [4,8,14,22,32,38,32,26,18,12,20,30,38,44,38,28,18,10,18,28,36,28,18,10,8,14,22,12];
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 3, height: 52 }}>
+      {heights.slice(0, bars).map((h, i) => (
+        <div key={i} className="a-wave" style={{
+          width: 3, height: h, borderRadius: 99, background: color, flexShrink: 0,
+          "--dur": `${0.7 + (i % 6) * 0.12}s`,
+          "--del": `${(i * 0.045).toFixed(2)}s`,
+        } as React.CSSProperties} />
+      ))}
+    </div>
+  );
+}
+
+/* ─── Animated SVG sleep chart ─── */
+function SleepChart() {
+  const [drawn, setDrawn] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const obs = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { setDrawn(true); obs.disconnect(); }
+    }, { threshold: 0.3 });
+    if (ref.current) obs.observe(ref.current);
+    return () => obs.disconnect();
+  }, []);
+  const pts = "0,54 22,50 44,28 66,8 88,22 110,40 132,12 154,4 176,18 198,42 220,32 242,8 264,24 280,48";
+  return (
+    <div ref={ref} style={{ marginTop: 16 }}>
+      <svg width="100%" height="60" viewBox="0 0 280 60" preserveAspectRatio="none" style={{ overflow: "visible" }}>
+        <defs>
+          <linearGradient id="sg" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#34D399" />
+            <stop offset="55%" stopColor="#22D3EE" />
+            <stop offset="100%" stopColor="#a78bfa" />
+          </linearGradient>
+          <linearGradient id="sfill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#34D399" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#34D399" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <polyline points={pts + " 280,60 0,60"} fill="url(#sfill)" stroke="none" />
+        <polyline points={pts} fill="none" stroke="url(#sg)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ strokeDasharray: 800, strokeDashoffset: drawn ? 0 : 800, transition: drawn ? "stroke-dashoffset 2.2s cubic-bezier(.4,0,.2,1)" : "none" }}
+        />
+      </svg>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+        {["10pm","12am","2am","4am","6am"].map(t => (
+          <span key={t} style={{ fontSize: 8, color: "rgba(255,255,255,.2)", letterSpacing: ".04em" }}>{t}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── Testimonial card ─── */
+function TestimonialCard({ name, role, quote, metric, color, avatar }: { name: string; role: string; quote: string; metric: string; color: string; avatar: string }) {
+  return (
+    <div className="tcard" style={{ padding: "28px 26px", borderColor: `${color}14`, display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", gap: 4 }}>
+        {[1,2,3,4,5].map(i => (
+          <svg key={i} width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1l1.545 3.13L12 4.635l-2.5 2.435.59 3.44L7 8.885l-3.09 1.625.59-3.44L2 4.635l3.455-.505L7 1z" fill={color} />
+          </svg>
+        ))}
+      </div>
+      <p style={{ fontSize: 14.5, color: "rgba(226,232,240,.75)", lineHeight: 1.65, fontStyle: "italic", flex: 1 }}>&ldquo;{quote}&rdquo;</p>
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 12px", borderRadius: 999, background: `${color}12`, border: `1px solid ${color}28` }}>
+        <TrendingUp size={11} color={color} />
+        <span style={{ fontSize: 11, fontWeight: 700, color, letterSpacing: ".04em" }}>{metric}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`https://images.unsplash.com/${avatar}?w=80&h=80&q=80&fit=crop&auto=format`} alt={name}
+          style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", border: `2px solid ${color}30` }} />
+        <div>
+          <p style={{ fontSize: 13.5, fontWeight: 700, color: "#e2e8f0" }}>{name}</p>
+          <p style={{ fontSize: 11, color: "rgba(255,255,255,.3)", marginTop: 2 }}>{role}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Scroll reveal wrapper ─── */
 function Reveal({ children, delay = 0, y = 28 }: { children: React.ReactNode; delay?: number; y?: number }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -76,7 +195,7 @@ function Phone({ children }: { children: React.ReactNode }) {
       <div style={{ width: 88, height: 24, background: "#0b0d18", borderRadius: 999, margin: "0 auto 8px", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#1a1d2e" }} />
       </div>
-      <div style={{ borderRadius: 36, overflow: "hidden", background: "#070811", minHeight: 490 }}>
+      <div className="scanline-wrap" style={{ borderRadius: 36, overflow: "hidden", background: "#070811", minHeight: 490 }}>
         {children}
       </div>
     </div>
@@ -381,6 +500,7 @@ export default function Page() {
 
   return (
     <div style={{ position: "relative", overflowX: "hidden" }}>
+      <ScrollProgress />
 
       {/* ── Nav ── */}
       <nav style={{
@@ -408,6 +528,25 @@ export default function Page() {
         <div className="a-mesh1" style={{ position: "absolute", top: "5%", left: "5%", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle,rgba(52,211,153,.07) 0%,transparent 70%)", pointerEvents: "none" }} />
         <div className="a-mesh2" style={{ position: "absolute", bottom: "5%", right: "5%", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle,rgba(167,139,250,.07) 0%,transparent 70%)", pointerEvents: "none" }} />
         <div className="a-mesh3" style={{ position: "absolute", top: "40%", left: "40%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(34,211,238,.05) 0%,transparent 70%)", pointerEvents: "none" }} />
+        {/* Ambient particles */}
+        {[
+          { top:"12%",left:"18%", s:5, c:"#34D399", dur:14, dx:"20px", dy:"-24px" },
+          { top:"25%",left:"82%", s:3, c:"#22D3EE", dur:18, dx:"-16px", dy:"20px" },
+          { top:"65%",left:"12%", s:4, c:"#a78bfa", dur:12, dx:"24px", dy:"-18px" },
+          { top:"72%",left:"88%", s:6, c:"#34D399", dur:20, dx:"-22px", dy:"-28px" },
+          { top:"45%",left:"6%",  s:3, c:"#22D3EE", dur:16, dx:"18px", dy:"14px" },
+          { top:"30%",left:"92%", s:4, c:"#a78bfa", dur:22, dx:"-14px", dy:"22px" },
+          { top:"80%",left:"50%", s:3, c:"#34D399", dur:13, dx:"12px", dy:"-16px" },
+          { top:"15%",left:"55%", s:5, c:"#22D3EE", dur:17, dx:"-18px", dy:"20px" },
+        ].map((p, i) => (
+          <div key={i} className="a-particle" style={{
+            position: "absolute", top: p.top, left: p.left,
+            width: p.s, height: p.s, borderRadius: "50%", background: p.c,
+            "--pdur": `${p.dur}s`, "--dx": p.dx, "--dy": p.dy,
+            boxShadow: `0 0 ${p.s * 3}px ${p.c}`,
+            pointerEvents: "none",
+          } as React.CSSProperties} />
+        ))}
 
         {/* Logo with glow ring */}
         <div className="hero-seq-1 a-float" style={{ position: "relative", marginBottom: 28 }}>
@@ -425,8 +564,11 @@ export default function Page() {
           Know Your <span className="shimmer">Mind</span><br />Every Morning
         </h1>
 
-        <p className="hero-seq-4" style={{ fontSize: 18, color: "rgba(226,232,240,.5)", lineHeight: 1.7, maxWidth: 480, marginBottom: 40 }}>
-          GetZen reads your voice, decodes your dreams, tracks what you eat, and maps how you feel — one daily picture of your entire inner world.
+        <p className="hero-seq-4" style={{ fontSize: 18, color: "rgba(226,232,240,.5)", lineHeight: 1.7, maxWidth: 480, marginBottom: 16 }}>
+          Your <span style={{ color: "rgba(226,232,240,.85)", fontWeight: 500 }}><WordRotator words={["voice","dreams","nutrition","sleep","emotions","brainwaves"]} /></span> — decoded by AI into one daily picture of your inner world.
+        </p>
+        <p className="hero-seq-4" style={{ fontSize: 14, color: "rgba(226,232,240,.3)", maxWidth: 460, marginBottom: 36, lineHeight: 1.6 }}>
+          16 ML models · No wearable required · 30 seconds a day
         </p>
 
         <div className="hero-seq-5" style={{ display: "flex", gap: 14, justifyContent: "center", marginBottom: 20 }}>
@@ -444,7 +586,7 @@ export default function Page() {
         <div style={{ display: "flex", gap: 0, marginBottom: 72, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.07)", borderRadius: 18, overflow: "hidden" }}>
           {[{v:16,s:"",l:"AI Models"},{v:92,s:".98%",l:"Sleep Accuracy"},{v:7,s:"",l:"Biometric Layers"}].map((s, i) => (
             <div key={s.l} style={{ padding: "20px 40px", borderRight: i < 2 ? "1px solid rgba(255,255,255,.06)" : "none", textAlign: "center" }}>
-              <p className="font-display" style={{ fontSize: 30, fontWeight: 800, background: "linear-gradient(135deg,#34D399,#22D3EE)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>
+              <p className="font-display a-numglow" style={{ fontSize: 30, fontWeight: 800, background: "linear-gradient(135deg,#34D399,#22D3EE)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", lineHeight: 1 }}>
                 <Counter target={s.v} />{s.s}
               </p>
               <p style={{ fontSize: 11, color: "rgba(226,232,240,.3)", marginTop: 6, letterSpacing: ".08em", textTransform: "uppercase" }}>{s.l}</p>
@@ -515,7 +657,7 @@ export default function Page() {
       <hr className="divider" />
 
       {/* ── Bento features ── */}
-      <section id="features" style={{ padding: "100px 32px", maxWidth: 1140, margin: "0 auto" }}>
+      <section id="features" data-science="true" style={{ padding: "100px 32px", maxWidth: 1140, margin: "0 auto" }}><span id="science" style={{ position: "absolute", marginTop: -80 }} />
         <Reveal>
           <div style={{ textAlign: "center", marginBottom: 64 }}>
             <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Activity size={10} />What GetZen tracks</div>
@@ -540,33 +682,41 @@ export default function Page() {
               <h3 className="font-display" style={{ fontSize: 20, fontWeight: 800, marginBottom: 10, letterSpacing: "-.02em" }}>Voice Emotion Analysis</h3>
               <p style={{ fontSize: 14.5, color: "rgba(226,232,240,.5)", lineHeight: 1.65 }}>Speak 30 seconds each morning. GetZen extracts stress markers, emotional tone, and energy — no wearable required. Your voice knows things your mind hasn&apos;t admitted yet.</p>
             </div>
-            <div style={{ padding: "20px 18px", background: "rgba(255,255,255,.03)", borderRadius: 16, border: "1px solid rgba(52,211,153,.12)", minWidth: 160 }}>
-              {[{l:"Tone",v:"Confident",c:"#34D399"},{l:"Stress",v:"Low",c:"#22D3EE"},{l:"Energy",v:"High",c:"#a78bfa"},{l:"Clarity",v:"Clear",c:"#fb923c"}].map(r => (
-                <div key={r.l} style={{ display: "flex", justifyContent: "space-between", gap: 16, padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,.04)" }}>
-                  <span style={{ fontSize: 11, color: "rgba(255,255,255,.3)" }}>{r.l}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: r.c }}>{r.v}</span>
-                </div>
-              ))}
+            <div style={{ padding: "18px 20px", background: "rgba(255,255,255,.03)", borderRadius: 16, border: "1px solid rgba(52,211,153,.12)", minWidth: 180 }}>
+              <p style={{ fontSize: 9, color: "rgba(255,255,255,.3)", letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 12 }}>Live voice pattern</p>
+              <AnimatedWaveform color="#34D399" bars={28} />
+              <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between" }}>
+                {[{l:"Tone",v:"Confident",c:"#34D399"},{l:"Stress",v:"Low",c:"#22D3EE"},{l:"Energy",v:"High",c:"#a78bfa"}].map(r => (
+                  <div key={r.l} style={{ textAlign: "center" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: r.c }}>{r.v}</p>
+                    <p style={{ fontSize: 8, color: "rgba(255,255,255,.25)", marginTop: 2 }}>{r.l}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Small — EEG */}
-          <div className="bento" style={{ padding: "28px 26px" }}>
+          <Reveal delay={80} y={20}>
+          <div className="bento" style={{ padding: "28px 26px", height: "100%" }}>
             <div style={{ width: 46, height: 46, borderRadius: 14, background: "rgba(167,139,250,.1)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
               <BarChart2 size={21} color="#a78bfa" />
             </div>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>EEG Neurofeedback</h3>
             <p style={{ fontSize: 13, color: "rgba(226,232,240,.45)", lineHeight: 1.6 }}>Muse 2 / Muse S brainwave monitoring, real-time focus training, and meditation depth scoring.</p>
           </div>
+          </Reveal>
 
           {/* Small — Dreams */}
-          <div className="bento" style={{ padding: "28px 26px" }}>
+          <Reveal delay={160} y={20}>
+          <div className="bento" style={{ padding: "28px 26px", height: "100%" }}>
             <div style={{ width: 46, height: 46, borderRadius: 14, background: "rgba(167,139,250,.1)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
               <Moon size={21} color="#a78bfa" />
             </div>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Dream Decoding</h3>
             <p style={{ fontSize: 13, color: "rgba(226,232,240,.45)", lineHeight: 1.6 }}>Jot down fragments — even jumbled words. AI reads the emotional narrative beneath the symbols.</p>
           </div>
+          </Reveal>
 
           {/* Large — Sleep */}
           <div className="bento" style={{ gridColumn: "span 2", padding: "32px 30px", display: "flex", gap: 28, alignItems: "center", background: "linear-gradient(135deg,rgba(34,211,238,.04),rgba(167,139,250,.04))" }}>
@@ -577,18 +727,16 @@ export default function Page() {
               <h3 className="font-display" style={{ fontSize: 20, fontWeight: 800, marginBottom: 10, letterSpacing: "-.02em" }}>Sleep Staging</h3>
               <p style={{ fontSize: 14.5, color: "rgba(226,232,240,.5)", lineHeight: 1.65 }}>92.98% accurate sleep-stage detection — REM, deep, and light sleep tracked nightly. Wake up knowing exactly what your body did while you were gone.</p>
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, minWidth: 140 }}>
-              {[{s:"REM",v:"1h 42m",p:62,c:"#a78bfa"},{s:"Deep",v:"1h 18m",p:48,c:"#34D399"},{s:"Light",v:"3h 10m",p:82,c:"#22D3EE"}].map(r => (
-                <div key={r.s}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                    <span style={{ fontSize: 10, color: "rgba(255,255,255,.35)" }}>{r.s}</span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: r.c }}>{r.v}</span>
+            <div style={{ minWidth: 200, flex: "0 0 200px" }}>
+              <div style={{ display: "flex", gap: 14, marginBottom: 10 }}>
+                {[{s:"REM",v:"1h 42m",c:"#a78bfa"},{s:"Deep",v:"1h 18m",c:"#34D399"},{s:"Light",v:"3h 10m",c:"#22D3EE"}].map(r => (
+                  <div key={r.s} style={{ textAlign: "center" }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: r.c }}>{r.v}</p>
+                    <p style={{ fontSize: 8, color: "rgba(255,255,255,.28)", marginTop: 2 }}>{r.s}</p>
                   </div>
-                  <div style={{ height: 4, borderRadius: 99, background: "rgba(255,255,255,.06)" }}>
-                    <div style={{ height: "100%", width: `${r.p}%`, borderRadius: 99, background: r.c }} />
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <SleepChart />
             </div>
           </div>
 
@@ -602,31 +750,37 @@ export default function Page() {
           </div>
 
           {/* Small — Breathwork */}
-          <div className="bento" style={{ padding: "28px 26px" }}>
+          <Reveal delay={80} y={20}>
+          <div className="bento" style={{ padding: "28px 26px", height: "100%" }}>
             <div style={{ width: 46, height: 46, borderRadius: 14, background: "rgba(34,211,238,.1)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
               <Wind size={21} color="#22D3EE" />
             </div>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Guided Breathwork</h3>
             <p style={{ fontSize: 13, color: "rgba(226,232,240,.45)", lineHeight: 1.6 }}>7 evidence-based exercises — box breathing, 4-7-8, coherence. HRV-guided and stress-aware.</p>
           </div>
+          </Reveal>
 
           {/* Small — Peak Focus */}
-          <div className="bento" style={{ padding: "28px 26px" }}>
+          <Reveal delay={160} y={20}>
+          <div className="bento" style={{ padding: "28px 26px", height: "100%" }}>
             <div style={{ width: 46, height: 46, borderRadius: 14, background: "rgba(52,211,153,.1)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
               <Zap size={21} color="#34D399" />
             </div>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Peak Focus Windows</h3>
             <p style={{ fontSize: 13, color: "rgba(226,232,240,.45)", lineHeight: 1.6 }}>Predicts your optimal performance window daily — based on sleep, circadian rhythm, and mood baseline.</p>
           </div>
+          </Reveal>
 
           {/* Small — Emotions */}
-          <div className="bento" style={{ padding: "28px 26px" }}>
+          <Reveal delay={240} y={20}>
+          <div className="bento" style={{ padding: "28px 26px", height: "100%" }}>
             <div style={{ width: 46, height: 46, borderRadius: 14, background: "rgba(167,139,250,.1)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
               <TrendingUp size={21} color="#a78bfa" />
             </div>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Emotion Tracking</h3>
             <p style={{ fontSize: 13, color: "rgba(226,232,240,.45)", lineHeight: 1.6 }}>Map your emotional landscape over weeks. Correlate mood with sleep, food, voice, and cycle phase.</p>
           </div>
+          </Reveal>
 
         </BentoGrid>
       </section>
@@ -645,14 +799,14 @@ export default function Page() {
         </Reveal>
         {/* Row 1 — 3 equal */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
-          <InsightCard id="photo-1526374965328-7f61d4dc18c5" h={320} color="#34D399" screen="Voice" quote="Stress markers dropped 23% this week. Peak focus: 9–11am." />
-          <InsightCard id="photo-1534796636912-3b95b3ab5986" h={320} color="#a78bfa" screen="Dream" quote="Water & movement in 3 of 5 dreams — correlates with change-seeking." />
-          <InsightCard id="photo-1498837167922-ddd27525d352" h={320} color="#fb923c" screen="Nutrition" quote="Salmon twice this week — focus score 21% above average both days." />
+          <Reveal delay={0} y={20}><InsightCard id="photo-1526374965328-7f61d4dc18c5" h={320} color="#34D399" screen="Voice" quote="Stress markers dropped 23% this week. Peak focus: 9–11am." /></Reveal>
+          <Reveal delay={100} y={20}><InsightCard id="photo-1534796636912-3b95b3ab5986" h={320} color="#a78bfa" screen="Dream" quote="Water & movement in 3 of 5 dreams — correlates with change-seeking." /></Reveal>
+          <Reveal delay={200} y={20}><InsightCard id="photo-1498837167922-ddd27525d352" h={320} color="#fb923c" screen="Nutrition" quote="Salmon twice this week — focus score 21% above average both days." /></Reveal>
         </div>
         {/* Row 2 — wide + narrow */}
         <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 14 }}>
-          <InsightCard id="photo-1515649651127-caaa79b56f5f" h={300} color="#22D3EE" screen="Sleep" quote="Deep sleep 14 min faster than baseline. 4-7-8 breathing contributed." />
-          <InsightCard id="photo-1531746020798-e6953c6e8e04" h={300} color="#34D399" screen="Emotion" quote="Mood 31% more stable this month. Sleep consistency is the key driver." />
+          <Reveal delay={0} y={20}><InsightCard id="photo-1515649651127-caaa79b56f5f" h={300} color="#22D3EE" screen="Sleep" quote="Deep sleep 14 min faster than baseline. 4-7-8 breathing contributed." /></Reveal>
+          <Reveal delay={120} y={20}><InsightCard id="photo-1531746020798-e6953c6e8e04" h={300} color="#34D399" screen="Emotion" quote="Mood 31% more stable this month. Sleep consistency is the key driver." /></Reveal>
         </div>
       </section>
 
@@ -733,6 +887,49 @@ export default function Page() {
             ].map(([l,u,t]) => <CRow key={l as string} label={l as string} us={u as boolean} them={t as boolean} />)}
           </div>
           <p style={{ fontSize: 11.5, color: "rgba(255,255,255,.18)", textAlign: "center", marginTop: 16 }}>*Calm, Headspace, Oura, and Muse — none offers all of the above in one app</p>
+        </div>
+      </section>
+
+      <hr className="divider" />
+
+      {/* ── Testimonials ── */}
+      <section style={{ padding: "90px 32px", maxWidth: 1140, margin: "0 auto" }}>
+        <Reveal>
+          <div style={{ textAlign: "center", marginBottom: 52 }}>
+            <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Sparkles size={10} />Real people · Real results</div>
+            <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,46px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.1, marginBottom: 14 }}>
+              What early users are <span className="g">discovering</span>
+            </h2>
+            <p style={{ fontSize: 15, color: "rgba(226,232,240,.38)", maxWidth: 440, margin: "0 auto" }}>
+              Beta testers who let GetZen decode their mornings every day.
+            </p>
+          </div>
+        </Reveal>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
+          <Reveal delay={0}>
+            <TestimonialCard
+              name="Priya M." role="Yoga instructor, Bangalore"
+              quote="GetZen showed me my afternoon crash was tied to my lunch — I changed one meal and felt the difference next day. Nothing else ever gave me that link."
+              metric="+31% mood stability" color="#34D399"
+              avatar="photo-1494790108377-be9c29b29330"
+            />
+          </Reveal>
+          <Reveal delay={120}>
+            <TestimonialCard
+              name="James K." role="Startup founder, London"
+              quote="The daily brain report is the first thing I check each morning. It predicted a high-stress day from just my voice — and it was exactly right."
+              metric="Focus peak predicted ±18 min" color="#22D3EE"
+              avatar="photo-1507003211169-0a1dd7228f2d"
+            />
+          </Reveal>
+          <Reveal delay={240}>
+            <TestimonialCard
+              name="Sara L." role="Therapist & meditator, NYC"
+              quote="Dream decoding changed my entire journaling practice. I never connected my recurring water dreams to my anxiety — GetZen decoded it in week one."
+              metric="3 hidden patterns decoded" color="#a78bfa"
+              avatar="photo-1438761681033-6461ffad8d80"
+            />
+          </Reveal>
         </div>
       </section>
 
