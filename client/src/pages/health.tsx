@@ -18,6 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
 import { getSupabase } from "@/lib/supabase-browser";
 import { HealthSyncStatusBar } from "@/components/health-sync-status-bar";
+import { sbGetGeneric } from "@/lib/supabase-store";
 import { Capacitor } from "@capacitor/core";
 import {
   AreaChart,
@@ -451,7 +452,7 @@ export default function Health() {
         {/* Health sync diagnostics */}
         {(() => {
           try {
-            const diag = JSON.parse(localStorage.getItem("ndw_health_diagnostics") || "[]");
+            const diag: string[] = sbGetGeneric("ndw_health_diagnostics") ?? [];
             if (diag.length > 0) {
               return (
                 <div className="mt-2 p-2 rounded bg-black/30 max-h-32 overflow-y-auto">

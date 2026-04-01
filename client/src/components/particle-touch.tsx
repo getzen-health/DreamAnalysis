@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { sbGetGeneric } from "../lib/supabase-store";
 
 interface TouchParticle {
   x: number;
@@ -38,9 +39,8 @@ const EMOTION_COLORS: Record<string, string> = {
 
 function readEmotion(): { emotion: string; arousal: number } | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
-    if (!raw) return null;
-    const data = JSON.parse(raw);
+    const data = sbGetGeneric<any>("ndw_last_emotion");
+    if (!data) return null;
     const r = data?.result ?? data;
     if (!r?.emotion) return null;
     return { emotion: r.emotion, arousal: r.arousal ?? 0.4 };

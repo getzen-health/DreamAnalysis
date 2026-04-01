@@ -19,6 +19,7 @@ import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
+import { sbGetGeneric } from "@/lib/supabase-store";
 import { Sun, Sunset, Moon } from "lucide-react";
 
 /* ---------- constants ---------- */
@@ -258,14 +259,9 @@ export default function MoodTrends() {
           }
         }
       } catch { /* Supabase unavailable */ }
-      // 3. localStorage fallback
-      try {
-        const raw = localStorage.getItem("ndw_emotion_history");
-        if (raw) {
-          const entries = JSON.parse(raw);
-          if (Array.isArray(entries)) all.push(...entries);
-        }
-      } catch { /* ignore */ }
+      // 3. Supabase-backed local cache fallback
+      const cached = sbGetGeneric<any[]>("ndw_emotion_history");
+      if (Array.isArray(cached)) all.push(...cached);
       // Deduplicate by timestamp (within 3s)
       all.sort((a: any, b: any) => new Date(a.timestamp ?? a.created_at ?? 0).getTime() - new Date(b.timestamp ?? b.created_at ?? 0).getTime());
       const deduped: HistoryEntry[] = [];

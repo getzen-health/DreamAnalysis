@@ -28,7 +28,7 @@ import {
   computeBleBackoffDelay,
   type BleReconnectState,
 } from "@/lib/ble-reconnect";
-import { saveEmotionHistory } from "@/lib/supabase-store";
+import { saveEmotionHistory, sbGetSetting, sbSaveGeneric } from "@/lib/supabase-store";
 
 type DeviceState = "disconnected" | "connecting" | "connected" | "streaming";
 
@@ -507,10 +507,10 @@ function useDeviceInternal(): UseDeviceReturn {
               eegEmotionThrottle = now;
               const emotions = eegFrame.analysis?.emotions as Record<string, unknown> | undefined;
               // Don't overwrite manual feelings (user logged a feeling recently)
-              const manualUntil = parseInt(localStorage.getItem("ndw_manual_emotion_until") ?? "0", 10);
+              const manualUntil = parseInt(sbGetSetting("ndw_manual_emotion_until") ?? "0", 10);
               if (emotions?.emotion && now > manualUntil) {
                 try {
-                  localStorage.setItem("ndw_last_emotion", JSON.stringify({
+                  sbSaveGeneric("ndw_last_emotion", {
                     result: {
                       emotion: emotions.emotion,
                       valence: emotions.valence ?? 0,
@@ -522,7 +522,7 @@ function useDeviceInternal(): UseDeviceReturn {
                       timestamp: now / 1000,
                     },
                     timestamp: now,
-                  }));
+                  });
                   window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
                   // Fire-and-forget: sync EEG emotion → localStorage + Supabase + Express DB
                   // valence is -1 to 1; mood is 0-1 — convert by shifting and scaling

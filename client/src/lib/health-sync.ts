@@ -684,7 +684,7 @@ async function pullAndroidHealth(userId: string): Promise<PullResult> {
   // Store diagnostics so UI can show what happened
   (payload as any)._diagnostics = diagnostics;
   // Also persist diagnostics for debugging
-  try { localStorage.setItem("ndw_health_diagnostics", JSON.stringify(diagnostics)); } catch { /* ok */ }
+  sbSaveGeneric("ndw_health_diagnostics", diagnostics);
 
   return { payload, workouts: [] };
 }

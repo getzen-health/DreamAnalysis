@@ -16,6 +16,7 @@ import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
+import { sbGetGeneric } from "@/lib/supabase-store";
 import {
   AreaChart,
   Area,
@@ -186,14 +187,9 @@ export default function StressTrends() {
           }
         }
       } catch { /* Supabase unavailable */ }
-      // 3. localStorage
-      try {
-        const raw = localStorage.getItem("ndw_emotion_history");
-        if (raw) {
-          const entries = JSON.parse(raw);
-          if (Array.isArray(entries)) all.push(...entries);
-        }
-      } catch { /* ignore */ }
+      // 3. Supabase-backed local cache fallback
+      const cached = sbGetGeneric<any[]>("ndw_emotion_history");
+      if (Array.isArray(cached)) all.push(...cached);
       // Deduplicate by timestamp (within 3s window)
       all.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
       const deduped: HistoryEntry[] = [];

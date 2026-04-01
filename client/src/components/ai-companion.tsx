@@ -47,7 +47,7 @@ import {
   recordCompanionSession,
   getUsageNudge,
 } from "@/lib/companion-safeguards";
-import { sbGetSetting } from "../lib/supabase-store";
+import { sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 
 interface AICompanionProps {
   userId: string;
@@ -429,7 +429,7 @@ export function AICompanion({ userId }: AICompanionProps) {
     // Save to localStorage + Supabase as voice input
     try {
       const now = Date.now();
-      localStorage.setItem("ndw_last_emotion", JSON.stringify({
+      sbSaveGeneric("ndw_last_emotion", {
         result: {
           emotion: detected,
           valence: mapped.valence,
@@ -441,7 +441,7 @@ export function AICompanion({ userId }: AICompanionProps) {
           timestamp: now / 1000,
         },
         timestamp: now,
-      }));
+      });
       window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
 
       // Sync to Supabase

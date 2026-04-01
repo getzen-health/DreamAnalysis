@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from "react";
+import { sbGetGeneric } from "../lib/supabase-store";
 
 interface Particle {
   x: number;
@@ -45,12 +46,11 @@ const EMOTION_PALETTES: Record<string, { hue: number; sat: number; light: number
 const DEFAULT_PALETTE = { hue: 260, sat: 25, light: 30 };
 const PARTICLE_COUNT = 35;
 
-/** Read emotion from localStorage directly to avoid hook dependency issues */
+/** Read emotion from Supabase-backed store (localStorage cache + async Supabase sync) */
 function readEmotion(): { emotion: string; arousal: number; valence: number } | null {
   try {
-    const raw = localStorage.getItem("ndw_last_emotion");
-    if (!raw) return null;
-    const data = JSON.parse(raw);
+    const data = sbGetGeneric<any>("ndw_last_emotion");
+    if (!data) return null;
     const r = data?.result ?? data;
     if (!r?.emotion) return null;
     return { emotion: r.emotion, arousal: r.arousal ?? 0.3, valence: r.valence ?? 0 };

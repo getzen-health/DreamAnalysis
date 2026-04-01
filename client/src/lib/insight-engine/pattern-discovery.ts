@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase-browser";
+import { sbGetGeneric, sbSaveGeneric, sbGetSetting } from "@/lib/supabase-store";
 
 export type PassType = "time_bucket" | "food_lag" | "sleep_cascade" | "hrv_valence" | "weekly_rhythm";
 
@@ -33,7 +34,7 @@ const CACHE_KEY = "ndw_pattern_cache";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 function isPrivacyModeEnabled(): boolean {
-  try { return localStorage.getItem("ndw_privacy_mode") === "true"; } catch { return false; }
+  return sbGetSetting("ndw_privacy_mode") === "true";
 }
 
 function pearsonR(xs: number[], ys: number[]): number {
@@ -61,16 +62,12 @@ export class PatternDiscovery {
 
   async run(nowIso: string, current?: CurrentReading): Promise<StoredInsight[]> {
     // Check cache
-    try {
-      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-      if (cached && Date.now() - new Date(cached.computed).getTime() < CACHE_TTL_MS) {
-        return cached.insights as StoredInsight[];
-      }
-    } catch {}
+    const cached = sbGetGeneric<{ computed: string; insights: StoredInsight[] }>(CACHE_KEY);
+    if (cached && Date.now() - new Date(cached.computed).getTime() < CACHE_TTL_MS) {
+      return cached.insights;
+    }
 
-    const history: EmotionEntry[] = (() => {
-      try { return JSON.parse(localStorage.getItem("ndw_emotion_history") || "[]"); } catch { return []; }
-    })();
+    const history: EmotionEntry[] = sbGetGeneric<EmotionEntry[]>("ndw_emotion_history") ?? [];
 
     const insights: StoredInsight[] = [
       ...this.timeBucketPass(history, current, nowIso),
@@ -80,10 +77,8 @@ export class PatternDiscovery {
       ...this.hrvValencePass(),
     ];
 
-    // Persist cache
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ computed: new Date().toISOString(), insights }));
-    } catch {}
+    // Persist cache (localStorage + Supabase generic_store)
+    sbSaveGeneric(CACHE_KEY, { computed: new Date().toISOString(), insights });
 
     // Persist to Supabase (privacy-gated)
     if (!isPrivacyModeEnabled()) {
@@ -199,9 +194,8 @@ export class PatternDiscovery {
   private sleepCascadePass(history: EmotionEntry[]): StoredInsight[] {
     // Requires sleep score data from health_samples (ndw_sleep_data localStorage key).
     // Minimum: 5 poor-sleep nights (score <60) with next-day emotion data.
-    const sleepData: Array<{ lastPeriodStart?: string; score?: number; hours?: number; date?: string }> = (() => {
-      try { return JSON.parse(localStorage.getItem("ndw_sleep_data") || "null") ?? []; } catch { return []; }
-    })();
+    const sleepData: Array<{ lastPeriodStart?: string; score?: number; hours?: number; date?: string }> =
+      sbGetGeneric<Array<{ lastPeriodStart?: string; score?: number; hours?: number; date?: string }>>("ndw_sleep_data") ?? [];
     if (!Array.isArray(sleepData)) return [];
 
     const poorNights = sleepData.filter(s => (s.score ?? 100) < 60 || (s.hours ?? 8) < 6);
@@ -247,12 +241,9 @@ export class PatternDiscovery {
   private foodLagPass(): StoredInsight[] {
     // Correlates food log entries with emotion changes at T+60/90/120/180 min.
     // Minimum: 10 paired food+emotion data points, |Pearson r| > 0.45.
-    const foodLogs: Array<{ loggedAt: string; dominantMacro: string | null; calories?: number }> = (() => {
-      try { return JSON.parse(localStorage.getItem("ndw_food_logs_" + this.userId) || "[]"); } catch { return []; }
-    })();
-    const history: EmotionEntry[] = (() => {
-      try { return JSON.parse(localStorage.getItem("ndw_emotion_history") || "[]"); } catch { return []; }
-    })();
+    const foodLogs: Array<{ loggedAt: string; dominantMacro: string | null; calories?: number }> =
+      sbGetGeneric<Array<{ loggedAt: string; dominantMacro: string | null; calories?: number }>>("ndw_food_logs_" + this.userId) ?? [];
+    const history: EmotionEntry[] = sbGetGeneric<EmotionEntry[]>("ndw_emotion_history") ?? [];
     if (foodLogs.length < 10 || history.length < 10) return [];
 
     // For each food log, check stress at T+60, T+90, T+120, T+180 min
@@ -317,12 +308,9 @@ export class PatternDiscovery {
   private hrvValencePass(): StoredInsight[] {
     // Correlates morning HRV (health_samples where metric='hrv_sdnn')
     // with afternoon valence (12PM-6PM). Minimum 14 paired days.
-    const healthSamples: Array<{ metric: string; value: number; recordedAt: string }> = (() => {
-      try { return JSON.parse(localStorage.getItem("ndw_health_samples") || "[]"); } catch { return []; }
-    })();
-    const history: EmotionEntry[] = (() => {
-      try { return JSON.parse(localStorage.getItem("ndw_emotion_history") || "[]"); } catch { return []; }
-    })();
+    const healthSamples: Array<{ metric: string; value: number; recordedAt: string }> =
+      sbGetGeneric<Array<{ metric: string; value: number; recordedAt: string }>>("ndw_health_samples") ?? [];
+    const history: EmotionEntry[] = sbGetGeneric<EmotionEntry[]>("ndw_emotion_history") ?? [];
 
     const hrv = healthSamples.filter(s => s.metric === "hrv_sdnn");
     if (hrv.length < 14) return [];

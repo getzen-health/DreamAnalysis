@@ -9,6 +9,8 @@
  * Also generates brain-impact and mood-prediction text based on macros.
  */
 
+import { sbGetSetting } from "./supabase-store";
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 export type FoodRating = "excellent" | "good" | "mediocre" | "poor";
@@ -292,7 +294,7 @@ export function calculateFoodScore(food: FoodScoreInput): FoodScoreResult {
   // ── GLP-1 impact (for users on Ozempic/Wegovy/Mounjaro) ──────────
   let glpImpact: string | null = null;
   try {
-    const onGlp = localStorage.getItem("ndw_glp1_active") === "true";
+    const onGlp = sbGetSetting("ndw_glp1_active") === "true";
     if (onGlp) {
       if (sugar > 25) {
         glpImpact = "High sugar — may cause nausea with GLP-1. Choose low-glycemic foods to minimize GI side effects.";

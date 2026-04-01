@@ -142,14 +142,11 @@ function getAIInsight(checkin: EmotionCheckin | null): { headline: string; body:
   let baselineFocus = 0.5;
   let baselineN = 0;
   try {
-    const raw = localStorage.getItem("ndw_emotion_history");
-    if (raw) {
-      const hist = JSON.parse(raw) as Array<{ stress: number; focus: number }>;
-      if (hist.length >= 3) {
-        baselineStress = hist.reduce((s: number, e) => s + e.stress, 0) / hist.length;
-        baselineFocus = hist.reduce((s: number, e) => s + e.focus, 0) / hist.length;
-        baselineN = hist.length;
-      }
+    const hist = sbGetGeneric<Array<{ stress: number; focus: number }>>("ndw_emotion_history") ?? [];
+    if (hist.length >= 3) {
+      baselineStress = hist.reduce((s: number, e) => s + e.stress, 0) / hist.length;
+      baselineFocus = hist.reduce((s: number, e) => s + e.focus, 0) / hist.length;
+      baselineN = hist.length;
     }
   } catch { /* ignore */ }
 
@@ -867,7 +864,7 @@ export default function Today() {
       // Save as emotion data so all pages update
       const now = Date.now();
       try {
-        localStorage.setItem("ndw_last_emotion", JSON.stringify({
+        sbSaveGeneric("ndw_last_emotion", {
           result: {
             emotion: emotionLabel,
             valence: detected.valence,
@@ -879,7 +876,7 @@ export default function Today() {
             timestamp: now / 1000,
           },
           timestamp: now,
-        }));
+        });
         window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
         // Sync to Supabase
         import("@/lib/supabase-store").then(({ saveEmotionHistory }) => {
@@ -896,7 +893,7 @@ export default function Today() {
       // Keep saved confirmation visible longer
       setTimeout(() => setFeelingSaved(false), 10000);
       // Manual feeling stays as the active emotion until next check-in
-      try { localStorage.setItem("ndw_manual_emotion_until", String(Date.now() + 86400000)); } catch { /* ok */ }
+      sbSaveSetting("ndw_manual_emotion_until", String(Date.now() + 86400000));
 
       // Sync to Railway ML backend for session history
       syncMoodLogToML({
@@ -1042,12 +1039,8 @@ export default function Today() {
       try {
         sbLogs = await sbGetFoodLogs(userId) ?? [];
       } catch { /* ok */ }
-      // localStorage
-      let localLogs: FoodLog[] = [];
-      try {
-        const raw = localStorage.getItem(`ndw_food_logs_${userId}`);
-        if (raw) localLogs = JSON.parse(raw);
-      } catch { /* ok */ }
+      // localStorage cache (also synced to Supabase via sbSaveGeneric)
+      const localLogs: FoodLog[] = sbGetGeneric<FoodLog[]>(`ndw_food_logs_${userId}`) ?? [];
       // Merge + deduplicate
       const all = [...apiLogs, ...sbLogs, ...localLogs];
       const seen = new Set<string>();
@@ -1256,10 +1249,7 @@ export default function Today() {
       }));
     } else {
       // Fallback to localStorage if API data not available
-      try {
-        const raw = localStorage.getItem("ndw_emotion_history");
-        if (raw) history = JSON.parse(raw);
-      } catch { /* ignore */ }
+      history = sbGetGeneric("ndw_emotion_history") ?? [];
     }
     const days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
@@ -1773,13 +1763,11 @@ export default function Today() {
                   source: "manual" as const,
                   timestamp: result.timestamp,
                 };
-                try {
-                  localStorage.setItem("ndw_last_emotion", JSON.stringify({
-                    result: emotionResult,
-                    timestamp: Date.now(),
-                  }));
-                  window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
-                } catch {}
+                sbSaveGeneric("ndw_last_emotion", {
+                  result: emotionResult,
+                  timestamp: Date.now(),
+                });
+                window.dispatchEvent(new CustomEvent("ndw-emotion-update"));
 
                 // Sync to ML backend
                 const noteText = [

@@ -18,6 +18,7 @@ import { pageTransition } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
 import { EEGPeakHours } from "@/components/eeg-peak-hours";
 import { fetchLatestDreamContext } from "@/lib/dream-briefing-context";
+import { sbGetGeneric } from "@/lib/supabase-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -134,7 +135,7 @@ export default function Insights() {
   const handleGenerateBriefing = async () => {
     setBriefingLoading(true);
     try {
-      const emotionHistoryRaw = JSON.parse(localStorage.getItem("ndw_emotion_history") || "[]");
+      const emotionHistoryRaw: any[] = sbGetGeneric("ndw_emotion_history") ?? [];
       const yesterday = emotionHistoryRaw.filter((e: any) => {
         const d = new Date(e.timestamp);
         const now = new Date();
@@ -177,17 +178,12 @@ export default function Insights() {
 
   // Load data from localStorage + merge with API data
   useEffect(() => {
-    let local: EmotionEntry[] = [];
-    try {
-      const raw = localStorage.getItem("ndw_emotion_history");
-      if (raw) local = JSON.parse(raw);
-    } catch { /* ignore */ }
+    let local: EmotionEntry[] = sbGetGeneric("ndw_emotion_history") ?? [];
 
     // Also try last emotion
     try {
-      const lastRaw = localStorage.getItem("ndw_last_emotion");
-      if (lastRaw) {
-        const last = JSON.parse(lastRaw);
+      const last = sbGetGeneric<any>("ndw_last_emotion");
+      if (last) {
         if (last?.result) {
           const entry: EmotionEntry = {
             stress: last.result.stress_index ?? 0.5,

@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase-browser";
+import { sbGetSetting } from "@/lib/supabase-store";
 
 export type Quadrant = "ha_pos" | "ha_neg" | "la_pos" | "la_neg";
 
@@ -40,7 +41,7 @@ const MIN_SAMPLES_FOR_SUGGESTION = 3;
 const EUCLIDEAN_THRESHOLD = 0.3;
 
 function isPrivacyModeEnabled(): boolean {
-  try { return localStorage.getItem("ndw_privacy_mode") === "true"; } catch { return false; }
+  return sbGetSetting("ndw_privacy_mode") === "true";
 }
 
 function euclideanDistance(a: EEGSnapshot, b: EEGSnapshot): number {
