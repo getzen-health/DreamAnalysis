@@ -216,7 +216,7 @@ describe("WelcomeIntro — Skip for now", () => {
   });
 
   it("Skip sets localStorage and navigates to /", () => {
-    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const setItemSpy = vi.spyOn(window.localStorage, "setItem");
     renderWithProviders(<WelcomeIntro />);
     fireEvent.click(screen.getByText("Skip for now"));
     expect(setItemSpy).toHaveBeenCalledWith("onboarding_complete", "true");
@@ -226,7 +226,7 @@ describe("WelcomeIntro — Skip for now", () => {
 
 describe("WelcomeIntro — finish flow", () => {
   it("'Continue to Dashboard' on last step sets localStorage and navigates to /", () => {
-    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const setItemSpy = vi.spyOn(window.localStorage, "setItem");
     renderWithProviders(<WelcomeIntro />);
     // Navigate to last step
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
@@ -240,7 +240,7 @@ describe("WelcomeIntro — finish flow", () => {
   });
 
   it("Skip for now works from step 2 as well", () => {
-    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const setItemSpy = vi.spyOn(window.localStorage, "setItem");
     renderWithProviders(<WelcomeIntro />);
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
     fireEvent.click(screen.getByText("Skip for now"));
