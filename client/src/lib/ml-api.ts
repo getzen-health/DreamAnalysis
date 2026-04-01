@@ -1,43 +1,23 @@
 import { Capacitor } from "@capacitor/core";
 import { getParticipantId } from "@/lib/participant";
 
+// Always use the Railway cloud backend — never fall back to localhost.
 const ML_API_URL_DEFAULT =
   import.meta.env.VITE_ML_API_URL ||
-  "http://localhost:8080";
+  "https://neural-dream-ml-production.up.railway.app";
 
-// Clear any stale ngrok/localhost URLs saved in localStorage when on production.
-if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
+// Clear any stale ngrok/localhost URLs that may have been saved previously.
+if (typeof window !== "undefined") {
   try {
     const stored = localStorage.getItem("ml_backend_url");
-    if (stored && (stored.includes("ngrok") || stored.includes("localhost"))) {
+    if (stored && (stored.includes("ngrok") || stored.includes("localhost") || stored.includes("127.0.0.1"))) {
       localStorage.removeItem("ml_backend_url");
     }
   } catch { /* ignore */ }
 }
 
-/** Reads the ML backend URL, handling web, native, and user overrides. */
+/** Returns the ML backend URL — always Railway cloud. */
 export function getMLApiUrl(): string {
-  // 1. User override from Settings (always wins)
-  // NOTE: ml_backend_url in localStorage is intentional for local dev/debug override.
-  // In production builds, consider removing this fallback to avoid exposing
-  // internal service URLs to client-side scripts.
-  try {
-    const stored = localStorage.getItem("ml_backend_url");
-    if (stored?.trim()) return stored.trim().replace(/\/$/, "");
-  } catch { /* SSR / private browsing */ }
-
-  // 2. Native app: always use the build-time env var (Railway URL).
-  //    Never fall back to localhost — it won't reach the dev machine.
-  if (typeof window !== "undefined" && Capacitor.isNativePlatform()) {
-    return ML_API_URL_DEFAULT;
-  }
-
-  // 3. Web localhost: use localhost:8080 for direct local dev
-  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
-    return "http://localhost:8080";
-  }
-
-  // 4. Web production (Vercel): use env var
   return ML_API_URL_DEFAULT;
 }
 

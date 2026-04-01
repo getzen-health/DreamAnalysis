@@ -806,7 +806,7 @@ function MLBackendCard() {
   }
 
   async function testConnection() {
-    const target = url.trim().replace(/\/$/, "") || "http://localhost:8080";
+    const target = url.trim().replace(/\/$/, "") || ML_API_URL_DEFAULT;
     setTesting(true);
     setTestResult(null);
     try {
@@ -819,7 +819,8 @@ function MLBackendCard() {
     }
   }
 
-  const ML_DEFAULT = import.meta.env.VITE_ML_API_URL || "http://localhost:8080";
+  const ML_DEFAULT = import.meta.env.VITE_ML_API_URL || "https://neural-dream-ml-production.up.railway.app";
+  const ML_API_URL_DEFAULT = ML_DEFAULT;
 
   function resetToDefault() {
     try { localStorage.removeItem("ml_backend_url"); } catch { /* ok */ }
@@ -835,9 +836,7 @@ function MLBackendCard() {
         ML Backend
       </h3>
       <p className="text-sm text-muted-foreground mb-4">
-        By default the app uses the deployed ML backend on Render. Leave the field below
-        blank to use it. For local development you can override with your own server
-        (expose via <strong>ngrok</strong> if needed).
+        The app always uses the Railway cloud ML backend. Leave the field below blank to use it.
       </p>
 
       <div className="mb-4 p-3 rounded-xl bg-muted/30 border border-border/30 text-xs text-muted-foreground font-mono">
@@ -861,7 +860,7 @@ function MLBackendCard() {
           onClick={resetToDefault}
           className="mt-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground underline"
         >
-          Reset to Render default
+          Reset to Railway default
         </button>
       )}
 
@@ -876,7 +875,7 @@ function MLBackendCard() {
         </p>
       )}
       <p className="text-[11px] text-muted-foreground mt-3">
-        Current: <span className="font-mono">{url.trim() || "http://localhost:8080 (default)"}</span>
+        Current: <span className="font-mono">{url.trim() || `${ML_DEFAULT} (Railway)`}</span>
       </p>
     </Card>
   );
