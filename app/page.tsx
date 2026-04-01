@@ -880,9 +880,9 @@ export default function Page() {
 
       <hr className="divider" />
 
-      {/* ── Morning ritual — vertical timeline ── */}
-      <section style={{ padding: "80px 32px" }}>
-        <div style={{ maxWidth: 780, margin: "0 auto" }}>
+      {/* ── Morning ritual — cinematic alternating rows ── */}
+      <section style={{ padding: "0" }}>
+        <div style={{ maxWidth: 1140, margin: "0 auto", padding: "80px 32px 40px" }}>
           <Reveal>
             <div style={{ textAlign: "center", marginBottom: 64 }}>
               <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><TrendingUp size={10} />The morning ritual</div>
@@ -892,89 +892,63 @@ export default function Page() {
               <p style={{ fontSize: 15, color: "rgba(226,232,240,.35)", maxWidth: 380, margin: "0 auto" }}>Open the app. Do four things. GetZen does the rest.</p>
             </div>
           </Reveal>
-
-          {([
-            { n: "01", color: "#34D399", icon: <Mic size={20} color="#34D399" />, title: "Speak", sub: "30 seconds. No typing.", desc: "Talk freely into the app. GetZen's voice AI reads your stress level, emotional tone, and energy index — all from acoustic patterns in your voice.", tags: ["Stress detection", "Tone analysis", "Energy index"] },
-            { n: "02", color: "#a78bfa", icon: <Moon size={20} color="#a78bfa" />, title: "Log your dream", sub: "Even one word is enough.", desc: "Type any fragment you remember. The AI decodes what emotions your dreaming mind was working through — and connects it to your sleep quality from the night before.", tags: ["Symbol decoding", "Emotion themes", "REM correlation"] },
-            { n: "03", color: "#fb923c", icon: <Apple size={20} color="#fb923c" />, title: "Note what you eat", sub: "Log a meal. See the mood link.", desc: "GetZen tracks six distinct eating states and shows you exactly which foods lifted your focus, stabilised your mood, or disrupted your sleep — over days, weeks, and months.", tags: ["6 eating states", "Food–mood link", "Nutrient tracking"] },
-            { n: "04", color: "#22D3EE", icon: <Brain size={20} color="#22D3EE" />, title: "Read your report", sub: "One score. Full picture.", desc: "Your daily Brain Report pulls everything together — readiness score, peak focus window, sleep quality, and mood trajectory — synthesised from all 16 ML models.", tags: ["Readiness score", "Peak focus time", "16 ML models"] },
-          ] as const).map((step, i, arr) => (
-            <Reveal key={step.n} delay={i * 80} y={20}>
-              <div style={{ display: "flex", gap: 24, marginBottom: i < arr.length - 1 ? 0 : 0 }}>
-                {/* Left: number + line */}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 56, flexShrink: 0 }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 16, background: `${step.color}14`, border: `1.5px solid ${step.color}30`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    {step.icon}
-                  </div>
-                  {i < arr.length - 1 && (
-                    <div style={{ width: 1.5, flex: 1, minHeight: 32, marginTop: 6, marginBottom: 6, background: `linear-gradient(to bottom, ${step.color}40, transparent)` }} />
-                  )}
-                </div>
-                {/* Right: card */}
-                <div className="bento" style={{ flex: 1, padding: "24px 28px", marginBottom: i < arr.length - 1 ? 10 : 0 }}>
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 }}>
-                    <span className="font-display" style={{ fontSize: 11, fontWeight: 900, color: step.color, letterSpacing: ".14em" }}>STEP {step.n}</span>
-                  </div>
-                  <h3 className="font-display" style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-.02em", marginBottom: 4 }}>{step.title}</h3>
-                  <p style={{ fontSize: 12.5, color: step.color, fontWeight: 600, marginBottom: 12, opacity: .8 }}>{step.sub}</p>
-                  <p style={{ fontSize: 14, color: "rgba(226,232,240,.48)", lineHeight: 1.72, marginBottom: 16 }}>{step.desc}</p>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {step.tags.map(t => (
-                      <span key={t} style={{ padding: "4px 12px", borderRadius: 999, background: `${step.color}10`, border: `1px solid ${step.color}22`, fontSize: 10.5, fontWeight: 600, color: step.color }}>{t}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Reveal>
-          ))}
         </div>
-      </section>
-
-      <hr className="divider" />
-
-      {/* ── What you can do — phone capability grid ── */}
-      <section style={{ padding: "80px 32px", background: "rgba(255,255,255,.01)" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <Reveal>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 60, alignItems: "center", marginBottom: 64 }}>
-              <div>
-                <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Smartphone size={10} />Just your phone</div>
-                <h2 className="font-display" style={{ fontSize: "clamp(28px,4vw,50px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.05, marginBottom: 16 }}>
-                  No wearable.<br />No sensor.<br /><span className="g">Nothing extra.</span>
-                </h2>
-                <p style={{ fontSize: 15, color: "rgba(226,232,240,.4)", lineHeight: 1.75, maxWidth: 360 }}>
-                  GetZen runs entirely on your phone. Your microphone, your keyboard, your camera — that&apos;s all it needs to build a complete picture of your inner world every day.
-                </p>
+        {([
+          { n: "01", color: "#34D399", title: "Speak", sub: "30 seconds. Your voice knows.", desc: "Talk freely into the app. GetZen reads your stress level, emotional tone, and energy — all from acoustic patterns in your voice. No typing, no wearable.", img: "photo-1516321497487-e288fb19713f", tags: ["Stress detection", "Tone analysis", "Energy index"] },
+          { n: "02", color: "#a78bfa", title: "Log your dream", sub: "Even one word is enough.", desc: "Type any fragment you remember. The AI decodes what emotions your dreaming mind was processing — and connects it to your sleep data from the night before.", img: "photo-1517842645767-c639042777db", tags: ["Symbol decoding", "Emotion themes", "REM correlation"] },
+          { n: "03", color: "#fb923c", title: "Note what you eat", sub: "Log a meal. See the mood link.", desc: "GetZen tracks six eating states and shows you exactly which foods lifted your focus, stabilised your mood, or disrupted your sleep — across days and weeks.", img: "photo-1484723091739-30990688934a", tags: ["6 eating states", "Food–mood link", "Nutrient tracking"] },
+          { n: "04", color: "#22D3EE", title: "Read your report", sub: "One score. Full picture.", desc: "Your daily Brain Report — readiness score, peak focus window, sleep quality, and mood trajectory — synthesised from all 16 ML models into one clear picture.", img: "photo-1551288049-bebda4e38f71", tags: ["Readiness score", "Peak focus time", "16 ML models"] },
+        ] as const).map((step, i) => (
+          <Reveal key={step.n} y={40}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", minHeight: 480, marginBottom: 3, overflow: "hidden" }}>
+              <div style={{ order: i % 2 === 0 ? 1 : 2, position: "relative", overflow: "hidden" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={`https://images.unsplash.com/${step.img}?w=900&q=85&fit=crop&auto=format`} alt={step.title}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", transition: "transform .7s ease" }}
+                  onMouseEnter={e => (e.currentTarget.style.transform = "scale(1.05)")}
+                  onMouseLeave={e => (e.currentTarget.style.transform = "scale(1)")}
+                />
+                <div style={{ position: "absolute", inset: 0, background: i % 2 === 0 ? "linear-gradient(to right,transparent 45%,rgba(7,8,15,.95) 100%)" : "linear-gradient(to left,transparent 45%,rgba(7,8,15,.95) 100%)" }} />
+                <div style={{ position: "absolute", bottom: -10, [i % 2 === 0 ? "right" : "left"]: -8, lineHeight: 1, userSelect: "none", pointerEvents: "none" }}>
+                  <span className="font-display" style={{ fontSize: "clamp(100px,14vw,180px)", fontWeight: 900, color: `${step.color}18`, letterSpacing: "-.06em", display: "block" }}>{step.n}</span>
+                </div>
               </div>
-              <div style={{ display: "flex", justifyContent: "center" }}>
-                <div style={{ display: "flex", gap: 4, padding: "6px", background: "rgba(255,255,255,.04)", borderRadius: 12, border: "1px solid rgba(255,255,255,.07)", marginBottom: 16, width: "fit-content" }}>
-                  {(["brain","dream","nutrition"] as const).map(s => (
-                    <div key={s} style={{ padding: "4px 14px", borderRadius: 8, fontSize: 10, fontWeight: 600, color: activeScreen === s ? "#07080f" : "rgba(255,255,255,.35)", background: activeScreen === s ? "#34D399" : "transparent", cursor: "pointer", textTransform: "capitalize", letterSpacing: ".04em" }} onClick={() => setActiveScreen(s)}>{s}</div>
+              <div style={{ order: i % 2 === 0 ? 2 : 1, padding: "64px 60px", display: "flex", flexDirection: "column", justifyContent: "center", background: i % 2 === 0 ? "rgba(10,14,28,.92)" : "rgba(13,17,34,.92)" }}>
+                <span className="font-display" style={{ fontSize: 11, fontWeight: 900, color: step.color, letterSpacing: ".16em", textTransform: "uppercase", marginBottom: 16 }}>Step {step.n}</span>
+                <h3 className="font-display" style={{ fontSize: "clamp(26px,3.5vw,48px)", fontWeight: 800, letterSpacing: "-.025em", lineHeight: 1.05, marginBottom: 10 }}>{step.title}</h3>
+                <p style={{ fontSize: 14, fontWeight: 600, color: step.color, marginBottom: 18, opacity: .85 }}>{step.sub}</p>
+                <p style={{ fontSize: 15, color: "rgba(226,232,240,.45)", lineHeight: 1.8, maxWidth: 420, marginBottom: 28 }}>{step.desc}</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {step.tags.map(t => (
+                    <span key={t} style={{ padding: "5px 14px", borderRadius: 999, background: `${step.color}10`, border: `1px solid ${step.color}22`, fontSize: 11, fontWeight: 600, color: step.color, letterSpacing: ".04em" }}>{t}</span>
                   ))}
                 </div>
               </div>
             </div>
           </Reveal>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
-            {([
-              { icon: <Mic size={22} color="#34D399" />, color: "#34D399", title: "Voice Analysis", desc: "Speak into your phone. The mic captures your voice — the AI reads your stress, tone, and energy.", note: "Uses: Microphone · 30 sec" },
-              { icon: <Moon size={22} color="#a78bfa" />, color: "#a78bfa", title: "Dream Logging", desc: "Type dream fragments into the app. No special hardware — just your memory and a keyboard.", note: "Uses: Keyboard · 2 min" },
-              { icon: <Apple size={22} color="#fb923c" />, color: "#fb923c", title: "Meal Tracking", desc: "Log what you eat. GetZen connects each meal to how you felt hours later across six eating states.", note: "Uses: Keyboard or camera · 1 min" },
-              { icon: <Wind size={22} color="#22D3EE" />, color: "#22D3EE", title: "Guided Breathwork", desc: "Seven breathing exercises — box, 4-7-8, coherence — guided by the app with HRV awareness.", note: "Uses: Screen · speaker" },
-              { icon: <BarChart2 size={22} color="#a78bfa" />, color: "#a78bfa", title: "EEG Neurofeedback", desc: "Pairs with Muse 2 or Muse S headband for brainwave monitoring. Optional — not required.", note: "Uses: Muse headband (optional)" },
-              { icon: <Brain size={22} color="#22D3EE" />, color: "#22D3EE", title: "Daily Brain Report", desc: "Every morning, all 16 ML models synthesise into one readiness score and focus forecast.", note: "Uses: All signals combined" },
-            ] as const).map((cap, i) => (
-              <Reveal key={i} delay={i * 60} y={18}>
-                <div className="bento" style={{ padding: "26px 24px", height: "100%" }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 14, background: `${cap.color}12`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16, border: `1px solid ${cap.color}20` }}>
-                    {cap.icon}
-                  </div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, letterSpacing: "-.01em" }}>{cap.title}</h3>
-                  <p style={{ fontSize: 13, color: "rgba(226,232,240,.42)", lineHeight: 1.65, marginBottom: 14 }}>{cap.desc}</p>
-                  <p style={{ fontSize: 10, color: cap.color, fontWeight: 600, letterSpacing: ".05em", opacity: .7 }}>{cap.note}</p>
-                </div>
-              </Reveal>
-            ))}
+        ))}
+      </section>
+
+      <hr className="divider" />
+
+      {/* ── Built for real life ── */}
+      <section style={{ padding: "80px 32px" }}>
+        <div style={{ maxWidth: 1140, margin: "0 auto" }}>
+          <Reveal>
+            <div style={{ textAlign: "center", marginBottom: 48 }}>
+              <div className="tag" style={{ marginBottom: 20, display: "inline-flex" }}><Zap size={10} />Built for real life</div>
+              <h2 className="font-display" style={{ fontSize: "clamp(24px,3.5vw,44px)", fontWeight: 800, letterSpacing: "-.02em", marginBottom: 12 }}>Your phone. <span className="g">Your morning.</span></h2>
+              <p style={{ fontSize: 15, color: "rgba(226,232,240,.4)", maxWidth: 400, margin: "0 auto" }}>No wearable. No lab. Just open GetZen.</p>
+            </div>
+          </Reveal>
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 14, marginBottom: 14 }}>
+            <LifeCard id="photo-1573496359142-b8d87734a5a2" alt="Voice check-in" h={340} icon={<Mic size={14} color="#34D399" />} label="Voice" caption="Speak for 30 seconds. We read your emotion." accent="#34D399" />
+            <LifeCard id="photo-1476480862126-209bfaa8edc8" alt="Morning movement" h={340} icon={<Activity size={14} color="#22D3EE" />} label="Move" caption="Log a workout. See how it shifts your mood." accent="#22D3EE" />
+            <LifeCard id="photo-1547592180-85f173990554" alt="Eating mindfully" h={340} icon={<Apple size={14} color="#fb923c" />} label="Eat" caption="Every meal connects to how you feel." accent="#fb923c" />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 14 }}>
+            <LifeCard id="photo-1544367567-0f2fcb009e0b" alt="Breathing exercise" h={300} icon={<Wind size={14} color="#a78bfa" />} label="Breathe" caption="7 guided sessions. Calm in minutes." accent="#a78bfa" />
+            <LifeCard id="photo-1508672019048-805c876b67e2" alt="Mindful awareness" h={300} icon={<Sparkles size={14} color="#34D399" />} label="Be Mindful" caption="A daily picture of your inner world." accent="#34D399" />
           </div>
         </div>
       </section>
