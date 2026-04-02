@@ -331,10 +331,11 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const authPayload = requireAuth(req, res);
   if (!authPayload) return;
-  const { dreamText, tags, sleepQuality, sleepDuration } = req.body;
+  const { tags, sleepQuality, sleepDuration } = req.body;
   const userId = authPayload.userId;
+  const dreamText = typeof req.body.dreamText === 'string' ? req.body.dreamText.trim() : '';
   if (!dreamText) return badRequest(res, 'dreamText is required');
-  if (typeof dreamText !== 'string' || dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
+  if (dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
   const db = getDb();
   const rl = await checkRateLimit(db, `dreams-create:${userId}`, 20, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many dream submissions. Please wait before trying again.');

@@ -230,6 +230,7 @@ export default function FoodLog() {
       });
       const data: FoodAnalysis = await res.json();
       setAnalysis(data);
+      toast({ title: "Meal analyzed", description: data.summary ?? "Nutritional breakdown saved to your log." });
       // Small delay to ensure DB write completes before refetch
       await new Promise(r => setTimeout(r, 500));
       qc.invalidateQueries({ queryKey: ["/api/food/logs", USER_ID] });
