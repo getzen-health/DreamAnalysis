@@ -1858,6 +1858,122 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Workouts ─────────────────────────────────────────────────────────────────
+
+async function workoutsGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100);
+  const rows = await db.select().from(schema.workouts)
+    .where(eq(schema.workouts.userId, userId))
+    .orderBy(desc(schema.workouts.startedAt))
+    .limit(limit);
+  return success(res, rows);
+}
+
+async function workoutsPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { name, workoutType, startedAt, notes } = req.body;
+  if (!workoutType || typeof workoutType !== 'string') return badRequest(res, 'workoutType required');
+  const db = getDb();
+  const [row] = await db.insert(schema.workouts).values({
+    userId: authPayload.userId,
+    name: typeof name === 'string' ? name.substring(0, 100) : null,
+    workoutType,
+    startedAt: startedAt ? new Date(startedAt) : new Date(),
+    source: 'manual',
+    notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function workoutsPut(req: VercelRequest, res: VercelResponse, workoutId: string) {
+  if (req.method !== 'PUT') return methodNotAllowed(res, ['PUT']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const db = getDb();
+  const [existing] = await db.select({ userId: schema.workouts.userId }).from(schema.workouts)
+    .where(eq(schema.workouts.id, workoutId)).limit(1);
+  if (!existing) return error(res, 'Workout not found', 404);
+  if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your workout');
+  const { endedAt, durationMin, caloriesBurned, avgHr, maxHr, notes } = req.body;
+  await db.update(schema.workouts).set({
+    endedAt: endedAt ? new Date(endedAt) : null,
+    durationMin: durationMin != null ? String(durationMin) : null,
+    caloriesBurned: caloriesBurned != null ? String(caloriesBurned) : null,
+    avgHr: avgHr != null ? String(avgHr) : null,
+    maxHr: maxHr != null ? String(maxHr) : null,
+    notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
+  }).where(eq(schema.workouts.id, workoutId));
+  return success(res, { updated: true });
+}
+
+async function workoutSetsPost(req: VercelRequest, res: VercelResponse, workoutId: string) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const db = getDb();
+  const [existing] = await db.select({ userId: schema.workouts.userId }).from(schema.workouts)
+    .where(eq(schema.workouts.id, workoutId)).limit(1);
+  if (!existing) return error(res, 'Workout not found', 404);
+  if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your workout');
+  const { exerciseId, setNumber, reps, weightKg, durationSec, rpe } = req.body;
+  const [row] = await db.insert(schema.workoutSets).values({
+    workoutId,
+    exerciseId: exerciseId ?? null,
+    setNumber: parseInt(setNumber) || 1,
+    reps: reps != null ? parseInt(reps) : null,
+    weightKg: weightKg != null ? String(weightKg) : null,
+    durationSec: durationSec != null ? parseInt(durationSec) : null,
+    rpe: rpe != null ? String(rpe) : null,
+    completed: true,
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function workoutTemplatesGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  const rows = await db.select().from(schema.workoutTemplates)
+    .where(eq(schema.workoutTemplates.userId, userId))
+    .orderBy(desc(schema.workoutTemplates.createdAt))
+    .limit(50);
+  return success(res, rows);
+}
+
+async function workoutTemplatesPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { name, description, exercises } = req.body;
+  if (!name || typeof name !== 'string' || name.length > 100) return badRequest(res, 'name required (max 100 chars)');
+  const db = getDb();
+  const [row] = await db.insert(schema.workoutTemplates).values({
+    userId: authPayload.userId,
+    name: name.trim(),
+    description: typeof description === 'string' ? description.substring(0, 500) : null,
+    exercises: Array.isArray(exercises) ? exercises : [],
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function workoutTemplatesDelete(req: VercelRequest, res: VercelResponse, templateId: string) {
+  if (req.method !== 'DELETE') return methodNotAllowed(res, ['DELETE']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const db = getDb();
+  const [existing] = await db.select({ userId: schema.workoutTemplates.userId }).from(schema.workoutTemplates)
+    .where(eq(schema.workoutTemplates.id, templateId)).limit(1);
+  if (!existing) return error(res, 'Template not found', 404);
+  if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your template');
+  await db.delete(schema.workoutTemplates).where(eq(schema.workoutTemplates.id, templateId));
+  return success(res, { deleted: true });
+}
+
 // ── Habits ───────────────────────────────────────────────────────────────────
 
 async function habitsGet(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -2451,6 +2567,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'sleep-alarm' && s1 && req.method === 'GET') return await sleepAlarm(req, res, s1);
 
     if (s0 === 'ai-coach' && req.method === 'POST') return await aiCoachPost(req, res);
+
+    if (s0 === 'workouts') {
+      if (!s1 && req.method === 'POST') return await workoutsPost(req, res);
+      if (s1 && segs[2] === 'sets' && req.method === 'POST') return await workoutSetsPost(req, res, s1);
+      if (s1 && req.method === 'PUT') return await workoutsPut(req, res, s1);
+      if (s1 && req.method === 'GET') return await workoutsGet(req, res, s1);
+    }
+
+    if (s0 === 'workout-templates') {
+      if (!s1 && req.method === 'POST') return await workoutTemplatesPost(req, res);
+      if (s1 && req.method === 'DELETE') return await workoutTemplatesDelete(req, res, s1);
+      if (s1 && req.method === 'GET') return await workoutTemplatesGet(req, res, s1);
+    }
 
     if (s0 === 'habits') {
       if (!s1 && req.method === 'POST') return await habitsPost(req, res);
