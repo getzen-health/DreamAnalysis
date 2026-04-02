@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AreaChart,
   Area,
@@ -118,7 +119,7 @@ export default function BodyMetrics() {
   const { latestPayload, lastSyncAt, syncNow, status, isAvailable } = useHealthSync();
 
   // Fetch latest body metric from DB (populated by health sync)
-  const { data: latest } = useQuery<BodyMetric>({
+  const { data: latest, isLoading: latestLoading } = useQuery<BodyMetric>({
     queryKey: [`/api/body-metrics/${user?.id}/latest`],
     enabled: !!user?.id,
     retry: false,
@@ -126,7 +127,7 @@ export default function BodyMetrics() {
   });
 
   // Fetch history (last 90 days)
-  const { data: history = [] } = useQuery<BodyMetric[]>({
+  const { data: history = [], isLoading: historyLoading } = useQuery<BodyMetric[]>({
     queryKey: [`/api/body-metrics/${user?.id}`],
     enabled: !!user?.id,
     retry: false,
@@ -660,8 +661,22 @@ export default function BodyMetrics() {
         </motion.div>
       )}
 
+      {/* Loading skeleton */}
+      {(latestLoading || historyLoading) && (
+        <div className="space-y-3">
+          <div className="rounded-2xl p-5 border border-border bg-card space-y-3">
+            <div className="flex justify-between">
+              <Skeleton className="h-4 w-24 rounded" />
+              <Skeleton className="h-4 w-16 rounded" />
+            </div>
+            <Skeleton className="h-8 w-32 rounded" />
+            <Skeleton className="h-40 w-full rounded-lg" />
+          </div>
+        </div>
+      )}
+
       {/* Empty state */}
-      {history.length === 0 && latestWeight === null && (
+      {!latestLoading && !historyLoading && history.length === 0 && latestWeight === null && (
         <motion.div
           className="rounded-2xl p-6 text-center bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]"
           {...fadeInUp}
