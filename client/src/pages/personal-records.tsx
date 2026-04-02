@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Trophy,
   Brain,
@@ -165,6 +166,19 @@ export default function PersonalRecords() {
           <p className="text-xs text-muted-foreground">Your all-time bests across every session</p>
         </div>
       </div>
+
+      {/* Loading skeleton */}
+      {isLoading && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="glass-card p-5 flex flex-col gap-2">
+              <Skeleton className="h-3 w-24 rounded" />
+              <Skeleton className="h-8 w-16 rounded" />
+              <Skeleton className="h-3 w-20 rounded" />
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Empty state */}
       {!isLoading && !hasData && (
