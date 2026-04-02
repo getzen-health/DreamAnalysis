@@ -1055,6 +1055,8 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
   if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   if (!textDescription && !imageBase64) return badRequest(res, 'Provide a photo or describe what you ate');
   if (textDescription && (typeof textDescription !== 'string' || textDescription.length > 1000)) return badRequest(res, 'Description must be ≤1000 characters');
+  // ~10 MB base64 limit — prevents memory exhaustion and excessive vision API costs
+  if (imageBase64 && (typeof imageBase64 !== 'string' || imageBase64.length > 10_485_760)) return badRequest(res, 'Image exceeds 10 MB limit');
   // Rate limit: 30 food analyses per user per hour
   const rlFood = await checkRateLimit(getDb(), `food-analyze:${userId}`, 30, 60);
   if (!rlFood.allowed) return tooManyRequests(res, rlFood.retryAfterSeconds!, 'Too many food analysis requests. Please wait before trying again.');
@@ -1849,6 +1851,17 @@ async function readingsCreate(req: VercelRequest, res: VercelResponse) {
     if (userId !== undefined && (typeof userId !== 'string' || userId.length > 128)) {
       return badRequest(res, 'Invalid userId');
     }
+    if (emotion !== undefined && (typeof emotion !== 'string' || emotion.length > 100)) {
+      return badRequest(res, 'emotion must be a string ≤100 characters');
+    }
+    // Clamp numeric readings to valid ranges
+    const clamp01 = (v: unknown) => typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(1, v)) : null;
+    const clampN1 = (v: unknown) => typeof v === 'number' && isFinite(v) ? Math.max(-1, Math.min(1, v)) : null;
+    // features must be a plain object/array, not a huge string
+    if (features !== undefined && features !== null) {
+      const featStr = JSON.stringify(features);
+      if (featStr.length > 65536) return badRequest(res, 'features payload too large (max 64KB)');
+    }
 
     const db = getDb();
     const rlKey = userId ? `readings-create:${userId}` : `readings-create:${getClientIp(req)}`;
@@ -1858,10 +1871,10 @@ async function readingsCreate(req: VercelRequest, res: VercelResponse) {
       userId: userId ?? null,
       source,
       emotion: emotion ?? null,
-      valence: typeof valence === 'number' ? valence : null,
-      arousal: typeof arousal === 'number' ? arousal : null,
-      stress: typeof stress === 'number' ? stress : null,
-      confidence: typeof confidence === 'number' ? confidence : null,
+      valence: clampN1(valence),
+      arousal: clamp01(arousal),
+      stress: clamp01(stress),
+      confidence: clamp01(confidence),
       modelType: modelType ?? null,
       features: features ?? null,
     }).returning();
@@ -2121,14 +2134,25 @@ async function workoutSetsPost(req: VercelRequest, res: VercelResponse, workoutI
   if (!existing) return error(res, 'Workout not found', 404);
   if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your workout');
   const { exerciseId, setNumber, reps, weightKg, durationSec, rpe } = req.body;
+  const parsedSetNumber = Math.max(1, Math.min(parseInt(setNumber) || 1, 999));
+  const parsedReps = reps != null ? Math.max(0, Math.min(parseInt(reps) || 0, 9999)) : null;
+  const parsedDurationSec = durationSec != null ? Math.max(0, Math.min(parseInt(durationSec) || 0, 86400)) : null;
+  const parsedWeightKg = weightKg != null ? parseFloat(String(weightKg)) : null;
+  if (parsedWeightKg !== null && (!isFinite(parsedWeightKg) || parsedWeightKg < 0 || parsedWeightKg > 10000)) {
+    return badRequest(res, 'weightKg must be a non-negative number ≤10000');
+  }
+  const parsedRpe = rpe != null ? parseFloat(String(rpe)) : null;
+  if (parsedRpe !== null && (!isFinite(parsedRpe) || parsedRpe < 1 || parsedRpe > 10)) {
+    return badRequest(res, 'rpe must be 1–10');
+  }
   const [row] = await db.insert(schema.workoutSets).values({
     workoutId,
     exerciseId: exerciseId ?? null,
-    setNumber: parseInt(setNumber) || 1,
-    reps: reps != null ? parseInt(reps) : null,
-    weightKg: weightKg != null ? String(weightKg) : null,
-    durationSec: durationSec != null ? parseInt(durationSec) : null,
-    rpe: rpe != null ? String(rpe) : null,
+    setNumber: parsedSetNumber,
+    reps: parsedReps,
+    weightKg: parsedWeightKg !== null ? String(parsedWeightKg) : null,
+    durationSec: parsedDurationSec,
+    rpe: parsedRpe !== null ? String(parsedRpe) : null,
     completed: true,
   }).returning();
   return success(res, row, 201);
@@ -2484,11 +2508,15 @@ async function moodLogPost(req: VercelRequest, res: VercelResponse) {
   if (moodScore === undefined || moodScore === null) return badRequest(res, 'moodScore required');
   const score = Number(moodScore);
   if (isNaN(score) || score < 0 || score > 10) return badRequest(res, 'moodScore must be 0–10');
+  const energyNum = energyLevel != null ? Number(energyLevel) : null;
+  if (energyNum !== null && (!isFinite(energyNum) || energyNum < 0 || energyNum > 10)) {
+    return badRequest(res, 'energyLevel must be 0–10');
+  }
   const db = getDb();
   const [row] = await db.insert(schema.moodLogs).values({
     userId: authPayload.userId,
     moodScore: String(score),
-    energyLevel: energyLevel != null ? String(Number(energyLevel)) : null,
+    energyLevel: energyNum !== null ? String(energyNum) : null,
     notes: typeof notes === 'string' ? notes.substring(0, 1000) : null,
   }).returning();
   return success(res, row, 201);
@@ -2716,21 +2744,25 @@ async function voiceEmotionPost(req: VercelRequest, res: VercelResponse) {
   if (!authPayload) return;
   const { emotion, valence, arousal, confidence, probabilities, timestamp } = req.body || {};
   const userId = authPayload.userId;
-  if (!emotion) return badRequest(res, 'emotion required');
+  if (!emotion || typeof emotion !== 'string' || emotion.length > 100) return badRequest(res, 'emotion must be a non-empty string ≤100 chars');
+  const parsedTs = timestamp ? new Date(timestamp) : new Date();
+  if (isNaN(parsedTs.getTime())) return badRequest(res, 'Invalid timestamp');
   const db = getDb();
   // Rate limit: 100 per user per hour
   const rl = await checkRateLimit(db, `voice-emotion:${userId}`, 100, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+  const clamp01 = (v: unknown) => typeof v === 'number' && isFinite(v) ? Math.max(0, Math.min(1, v)) : null;
+  const clampN1 = (v: unknown) => typeof v === 'number' && isFinite(v) ? Math.max(-1, Math.min(1, v)) : null;
   const [row] = await db.insert(schema.userReadings).values({
     userId,
     source: 'voice',
-    emotion: String(emotion).slice(0, 50),
-    valence: typeof valence === 'number' ? valence : null,
-    arousal: typeof arousal === 'number' ? arousal : null,
+    emotion: emotion.slice(0, 50),
+    valence: clampN1(valence),
+    arousal: clamp01(arousal),
     stress: null,
-    confidence: typeof confidence === 'number' ? confidence : null,
+    confidence: clamp01(confidence),
     modelType: 'voice',
-    createdAt: timestamp ? new Date(timestamp) : new Date(),
+    createdAt: parsedTs,
   }).returning();
   return success(res, row, 201);
 }
