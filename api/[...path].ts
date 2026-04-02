@@ -408,9 +408,14 @@ async function dreamsAnalytics(req: VercelRequest, res: VercelResponse) {
 
 async function dreamsGenerateImage(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { dreamId } = req.body;
+  const { dreamId, userId } = req.body;
   if (!dreamId) return badRequest(res, 'dreamId required');
   const db = getDb();
+  // Rate limit: 10 image generations per user per hour
+  if (userId) {
+    const rl = await checkRateLimit(db, `dream-image:${userId}`, 10, 60);
+    if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many image generation requests. Please wait before trying again.');
+  }
   const [dream] = await db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.id, dreamId));
   if (!dream) return error(res, 'Dream not found', 404);
   // Pollinations AI — free, no API key, returns a stable URL for the prompt
@@ -613,6 +618,9 @@ async function emotionsRecord(req: VercelRequest, res: VercelResponse) {
   const parsed = schema.insertEmotionReadingSchema.safeParse(req.body);
   if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid emotion data');
   const db = getDb();
+  // Rate limit: 120 emotion records per user per hour
+  const rl = await checkRateLimit(db, `emotions-record:${userId}`, 120, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [reading] = await db.insert(schema.emotionReadings).values(parsed.data).returning();
   return success(res, reading, 201);
 }
@@ -675,6 +683,9 @@ async function healthMetricsPost(req: VercelRequest, res: VercelResponse) {
   try {
     const data = schema.insertHealthMetricsSchema.parse(req.body);
     const db = getDb();
+    // Rate limit: 200 health metric writes per user per hour
+    const rl = await checkRateLimit(db, `health-metrics:${userId}`, 200, 60);
+    if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
     const [row] = await db.insert(schema.healthMetrics).values(data).returning();
     return success(res, row, 201);
   } catch (e: any) {
@@ -696,6 +707,10 @@ async function healthSamplesPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   try {
     const db = getDb();
+    const ip = getClientIp(req);
+    // Rate limit: 50 batch uploads per IP per hour
+    const rl = await checkRateLimit(db, `health-samples:${ip}`, 50, 60);
+    if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
     const { user_id, samples } = req.body as {
       user_id: string;
       samples: Array<{
