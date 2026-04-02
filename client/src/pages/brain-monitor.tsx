@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { SectionErrorBoundary } from "@/components/section-error-boundary";
 import { useQuery } from "@tanstack/react-query";
 import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
@@ -658,7 +659,7 @@ export default function BrainMonitor() {
       )}
 
       {/* ---- 2. Brain Age card (prominent) ---- */}
-      {isStreaming && <BrainAgeCard />}
+      {isStreaming && <SectionErrorBoundary label="Brain Age"><BrainAgeCard /></SectionErrorBoundary>}
 
       {/* ---- 3. EEG Waveform (350px tall, clean) ---- */}
       <div className="rounded-[14px] bg-card border border-border p-4 sm:p-6 overflow-hidden">
@@ -751,17 +752,19 @@ export default function BrainMonitor() {
       )}
 
       {/* ---- 4b. EEG Brain Connectivity (PLV coherence arcs) ---- */}
-      {(() => {
-        const plv = (analysis as Record<string, unknown> | undefined)?.plv_connectivity as Record<string, number> | undefined;
-        return (
-          <EEGCoherenceCard
-            frontalPlv={plv?.plv_frontal_alpha ?? null}
-            temporalPlv={plv?.plv_mean_theta ?? null}
-            leftFrontotemporalPlv={plv?.plv_fronto_temporal_alpha ?? null}
-            isStreaming={isStreaming}
-          />
-        );
-      })()}
+      <SectionErrorBoundary label="EEG Coherence">
+        {(() => {
+          const plv = (analysis as Record<string, unknown> | undefined)?.plv_connectivity as Record<string, number> | undefined;
+          return (
+            <EEGCoherenceCard
+              frontalPlv={plv?.plv_frontal_alpha ?? null}
+              temporalPlv={plv?.plv_mean_theta ?? null}
+              leftFrontotemporalPlv={plv?.plv_fronto_temporal_alpha ?? null}
+              isStreaming={isStreaming}
+            />
+          );
+        })()}
+      </SectionErrorBoundary>
 
       {/* ---- 5. Brain State summary (4 cards: Emotion, Stress, Focus, Flow) ---- */}
       <div className="rounded-[14px] bg-card border border-border p-6">
@@ -898,27 +901,29 @@ export default function BrainMonitor() {
       </div>
 
       {/* Intervention Suggestion */}
-      {(() => {
-        const emo = isStreaming && epochReady
-          ? (stableAnalysis?.emotions?.emotion ?? null)
-          : (voiceResult?.emotion ?? null);
-        const stressIdx = isStreaming && stableAnalysis?.stress
-          ? stableAnalysis.stress.stress_index
-          : undefined;
-        const val = isStreaming && stableAnalysis?.emotions
-          ? stableAnalysis.emotions.valence
-          : (voiceResult?.valence ?? undefined);
-        if (!emo) return null;
-        if (emgResult?.emgDetected) return null;
-        return (
-          <InterventionSuggestion
-            emotion={emo}
-            stressIndex={stressIdx}
-            valence={val}
-            compact
-          />
-        );
-      })()}
+      <SectionErrorBoundary label="Intervention Suggestion">
+        {(() => {
+          const emo = isStreaming && epochReady
+            ? (stableAnalysis?.emotions?.emotion ?? null)
+            : (voiceResult?.emotion ?? null);
+          const stressIdx = isStreaming && stableAnalysis?.stress
+            ? stableAnalysis.stress.stress_index
+            : undefined;
+          const val = isStreaming && stableAnalysis?.emotions
+            ? stableAnalysis.emotions.valence
+            : (voiceResult?.valence ?? undefined);
+          if (!emo) return null;
+          if (emgResult?.emgDetected) return null;
+          return (
+            <InterventionSuggestion
+              emotion={emo}
+              stressIndex={stressIdx}
+              valence={val}
+              compact
+            />
+          );
+        })()}
+      </SectionErrorBoundary>
 
       {/* ---- 6. ML Models (collapsed/expandable) ---- */}
       <Card className="rounded-[14px] bg-card border border-border">
