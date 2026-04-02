@@ -1858,6 +1858,64 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Cycle tracking ───────────────────────────────────────────────────────────
+
+async function cyclePost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { date, flowLevel, symptoms, phase, contraception, basalTemp, notes } = req.body;
+  if (!date || typeof date !== 'string') return badRequest(res, 'date required (YYYY-MM-DD)');
+  const db = getDb();
+  const [row] = await db.insert(schema.cycleTracking).values({
+    userId: authPayload.userId, date,
+    flowLevel: flowLevel ?? null,
+    symptoms: Array.isArray(symptoms) ? symptoms : null,
+    phase: phase ?? null,
+    contraception: contraception ?? null,
+    basalTemp: basalTemp != null ? String(basalTemp) : null,
+    notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
+  }).onConflictDoUpdate({
+    target: [schema.cycleTracking.userId, schema.cycleTracking.date],
+    set: { flowLevel: flowLevel ?? null, symptoms: Array.isArray(symptoms) ? symptoms : null, phase: phase ?? null, contraception: contraception ?? null, basalTemp: basalTemp != null ? String(basalTemp) : null, notes: typeof notes === 'string' ? notes.substring(0, 500) : null },
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function cycleGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 90, 1), 365);
+  const since = new Date(Date.now() - days * 86_400_000);
+  const db = getDb();
+  const rows = await db.select().from(schema.cycleTracking)
+    .where(and(eq(schema.cycleTracking.userId, userId), gte(schema.cycleTracking.date, since.toISOString().slice(0, 10))))
+    .orderBy(desc(schema.cycleTracking.date))
+    .limit(500);
+  return success(res, rows);
+}
+
+async function cyclePhase(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  // Find all period start entries (flow entries) ordered desc
+  const rows = await db.select({ date: schema.cycleTracking.date })
+    .from(schema.cycleTracking)
+    .where(and(eq(schema.cycleTracking.userId, userId)))
+    .orderBy(desc(schema.cycleTracking.date))
+    .limit(20);
+  if (rows.length === 0) return success(res, { currentPhase: 'unknown', dayOfCycle: 0, avgCycleLength: 28, lastPeriodStart: null, nextPeriodDate: null, periodStartCount: 0 });
+
+  const lastPeriodStart = rows[0].date;
+  const today = new Date().toISOString().slice(0, 10);
+  const dayOfCycle = Math.max(1, Math.round((new Date(today).getTime() - new Date(lastPeriodStart).getTime()) / 86_400_000) + 1);
+  const avgCycleLength = 28;
+  const nextPeriodDate = new Date(new Date(lastPeriodStart).getTime() + avgCycleLength * 86_400_000).toISOString().slice(0, 10);
+  const phase = dayOfCycle <= 5 ? 'menstrual' : dayOfCycle <= 13 ? 'follicular' : dayOfCycle <= 16 ? 'ovulation' : 'luteal';
+  return success(res, { currentPhase: phase, dayOfCycle, avgCycleLength, lastPeriodStart, nextPeriodDate, periodStartCount: rows.length });
+}
+
 // ── Mood log ─────────────────────────────────────────────────────────────────
 
 async function moodLogPost(req: VercelRequest, res: VercelResponse) {
@@ -2148,6 +2206,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'readings') {
       if (!s1 && req.method === 'POST') return await readingsCreate(req, res);
       if (s1 && req.method === 'GET')   return await readingsList(req, res, s1);
+    }
+
+    if (s0 === 'cycle') {
+      if (!s1 && req.method === 'POST') return await cyclePost(req, res);
+      if (s1 && segs[2] === 'phase' && req.method === 'GET') return await cyclePhase(req, res, s1);
+      if (s1 && req.method === 'GET') return await cycleGet(req, res, s1);
     }
 
     if (s0 === 'mood') {
