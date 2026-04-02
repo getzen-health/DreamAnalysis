@@ -562,15 +562,13 @@ async function aiChatGet(req: VercelRequest, res: VercelResponse, userId: string
 
 async function emotionsRecord(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { userId, stress, happiness, focus, energy, dominantEmotion, valence, arousal, eegSnapshot } = req.body;
-  if (!userId || stress === undefined || happiness === undefined || focus === undefined || energy === undefined || !dominantEmotion)
-    return badRequest(res, 'Missing required fields');
+  const userId = req.body?.userId as string | undefined;
+  if (!userId) return badRequest(res, 'userId required');
   if (!requireOwner(req, res, userId)) return;
+  const parsed = schema.insertEmotionReadingSchema.safeParse(req.body);
+  if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid emotion data');
   const db = getDb();
-  const [reading] = await db.insert(schema.emotionReadings).values({
-    userId, stress, happiness, focus, energy, dominantEmotion,
-    valence: valence ?? null, arousal: arousal ?? null, eegSnapshot: eegSnapshot ?? null,
-  }).returning();
+  const [reading] = await db.insert(schema.emotionReadings).values(parsed.data).returning();
   return success(res, reading, 201);
 }
 
