@@ -5,6 +5,8 @@ import { storage } from "./storage";
 import { logger } from "./logger";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
+import { Langfuse } from "langfuse";
+import { observeOpenAI } from "langfuse";
 import webpush from "web-push";
 import cron from "node-cron";
 import bcrypt from "bcryptjs";
@@ -59,9 +61,26 @@ if (VAPID_PUBLIC && VAPID_PRIVATE) {
   webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC, VAPID_PRIVATE);
 }
 
-const openai = process.env.OPENAI_API_KEY
+// ── Langfuse observability ────────────────────────────────────────────────────
+const langfuse = (process.env.LANGFUSE_SECRET_KEY && process.env.LANGFUSE_PUBLIC_KEY)
+  ? new Langfuse({
+      secretKey: process.env.LANGFUSE_SECRET_KEY,
+      publicKey: process.env.LANGFUSE_PUBLIC_KEY,
+      baseUrl: process.env.LANGFUSE_BASEURL ?? "https://cloud.langfuse.com",
+      release: process.env.npm_package_version ?? "1.0.0",
+      environment: process.env.NODE_ENV ?? "production",
+      flushInterval: 2000,
+    })
+  : null;
+
+const _rawOpenAI = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
+
+// Wrap with Langfuse if credentials present
+const openai = (_rawOpenAI && langfuse)
+  ? (observeOpenAI(_rawOpenAI, { generationName: "openai-llm" }) as unknown as OpenAI)
+  : _rawOpenAI;
 
 const anthropic = process.env.ANTHROPIC_API_KEY
   ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -624,7 +643,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
    * Uses Anthropic claude-haiku-4-5-20251001 when ANTHROPIC_API_KEY is set;
    * otherwise uses OpenAI gpt-5 with response_format json_object.
    */
-  async function analyzeDreamMultiPass(dreamText: string): Promise<{
+  async function analyzeDreamMultiPass(dreamText: string, userId?: string): Promise<{
     symbols: Array<{ symbol: string; meaning: string }>;
     emotions: Array<{ emotion: string; intensity: number }>;
     aiAnalysis: string;
@@ -636,6 +655,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     irt_recommended: boolean;
     wellbeing_note: string;
   } | undefined> {
+    // Langfuse trace for this multi-pass analysis
+    const trace = langfuse?.trace({
+      name: "dream-analysis-multipass",
+      userId,
+      input: { dreamTextLength: dreamText.length },
+      tags: ["dream", "multipass"],
+    });
+
     // ── Pass 1: Entity extraction ──────────────────────────────────────────
     type Pass1Result = {
       people: string[];
@@ -649,6 +676,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     if (anthropic) {
       // Use Anthropic claude-haiku
+      const span1 = trace?.generation({
+        name: "pass1-entity-extraction",
+        model: "claude-haiku-4-5-20251001",
+        input: [{ role: "user", content: `[dream text, ${dreamText.length} chars]` }],
+      });
       const r1 = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 512,
@@ -662,6 +694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const raw1 = r1.content[0].type === "text" ? r1.content[0].text : "{}";
       try { pass1 = JSON.parse(raw1); } catch { /* keep defaults */ }
+      span1?.end({ output: raw1, usage: { inputTokens: r1.usage.input_tokens, outputTokens: r1.usage.output_tokens } });
     } else if (openai) {
       const r1 = await openai.chat.completions.create({
         model: "gpt-5",
@@ -704,6 +737,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const pass2Prompt = `Given this dream and these entities: ${entitiesStr}\n\nClassify using Hall/Van de Castle dream taxonomy. Return JSON exactly in this shape: {"primary_theme":"","secondary_themes":[],"symbols":[{"name":"","interpretation":"","valence":""}],"emotional_arc":"","threat_simulation_index":0}\n\nthreat_simulation_index must be a number between 0 and 1.\n\nDream: ${dreamText}`;
 
     if (anthropic) {
+      const span2 = trace?.generation({
+        name: "pass2-theme-classification",
+        model: "claude-haiku-4-5-20251001",
+        input: [{ role: "user", content: `[pass2 prompt, ${pass2Prompt.length} chars]` }],
+      });
       const r2 = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 768,
@@ -712,6 +750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const raw2 = r2.content[0].type === "text" ? r2.content[0].text : "{}";
       try { pass2 = JSON.parse(raw2); } catch { /* keep defaults */ }
+      span2?.end({ output: raw2, usage: { inputTokens: r2.usage.input_tokens, outputTokens: r2.usage.output_tokens } });
     } else if (openai) {
       const r2 = await openai.chat.completions.create({
         model: "gpt-5",
@@ -743,6 +782,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const pass3Prompt = `Given theme=${pass2.primary_theme}, symbols=${JSON.stringify(pass2.symbols)}, emotional_arc=${pass2.emotional_arc}, nightmare_score=${nightmareScore}:\n\nWrite ONE specific insight about this particular dream (not generic advice). Predict the dreamer's morning mood. Recommend IRT (Image Rehearsal Therapy) only if nightmareScore > 0.5. Return JSON exactly in this shape: {"key_insight":"","morning_mood_prediction":"","irt_recommended":false,"wellbeing_note":""}`;
 
     if (anthropic) {
+      const span3 = trace?.generation({
+        name: "pass3-insight-generation",
+        model: "claude-haiku-4-5-20251001",
+        input: [{ role: "user", content: `[pass3 prompt, ${pass3Prompt.length} chars]` }],
+      });
       const r3 = await anthropic.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 512,
@@ -751,6 +795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const raw3 = r3.content[0].type === "text" ? r3.content[0].text : "{}";
       try { pass3 = JSON.parse(raw3); } catch { /* keep defaults */ }
+      span3?.end({ output: raw3, usage: { inputTokens: r3.usage.input_tokens, outputTokens: r3.usage.output_tokens } });
     } else if (openai) {
       const r3 = await openai.chat.completions.create({
         model: "gpt-5",
@@ -776,7 +821,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (pass3.wellbeing_note) aiAnalysisParts.push(pass3.wellbeing_note);
     if (pass3.irt_recommended) aiAnalysisParts.push("IRT (Image Rehearsal Therapy) is recommended for this nightmare.");
 
-    return {
+    const result = {
       symbols: symbolObjects,
       emotions: emotionObjects,
       aiAnalysis: aiAnalysisParts.join(" "),
@@ -788,6 +833,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       irt_recommended: pass3.irt_recommended ?? false,
       wellbeing_note: pass3.wellbeing_note || "",
     };
+
+    trace?.update({ output: { themes: result.themes, emotional_arc: result.emotional_arc } });
+    langfuse?.flushAsync().catch(() => {});
+    return result;
   }
 
   // Dream analysis endpoints
