@@ -27,6 +27,11 @@ export default defineConfig({
     dedupe: ["react", "react-dom", "@tanstack/react-query"],
   },
   root: path.resolve(import.meta.dirname, "client"),
+  // Strip console.log and console.info in production; keep warn/error for diagnostics
+  esbuild: {
+    drop: ["debugger"],
+    pure: ["console.log", "console.info"],
+  },
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
