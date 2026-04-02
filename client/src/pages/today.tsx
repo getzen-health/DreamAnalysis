@@ -1282,7 +1282,17 @@ export default function Today() {
     strain: userScores?.strainScore ?? undefined,
     stress: userScores?.stressScore ?? undefined,
   }), [userScores]);
-  const hrvTrend: "up" | "down" | "stable" | undefined = undefined; // TODO: derive from HRV history
+  // Derive HRV trend from recent EEG stress history (stress is inversely correlated with HRV)
+  const hrvTrend = useMemo((): "up" | "down" | "stable" | undefined => {
+    if (!recentHistory || recentHistory.length < 4) return undefined;
+    const sorted = [...recentHistory].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    const half = Math.floor(sorted.length / 2);
+    const olderAvgStress = sorted.slice(0, half).reduce((s, r) => s + r.stress, 0) / half;
+    const recentAvgStress = sorted.slice(half).reduce((s, r) => s + r.stress, 0) / (sorted.length - half);
+    const delta = olderAvgStress - recentAvgStress; // positive = stress fell = HRV up
+    if (Math.abs(delta) < 0.05) return "stable";
+    return delta > 0 ? "up" : "down";
+  }, [recentHistory]);
 
   // Derived values (raw from model)
   const emotion = checkin?.emotion ?? "---";
