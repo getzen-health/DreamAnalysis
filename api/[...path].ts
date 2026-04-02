@@ -1496,6 +1496,7 @@ async function studyEnroll(req: VercelRequest, res: VercelResponse) {
           consentFullName, consentInitials } = req.body;
   if (!userId || !studyId || !consentVersion)
     return badRequest(res, 'userId, studyId, and consentVersion are required');
+  if (!requireOwner(req, res, userId)) return;
   const KNOWN_STUDY_IDS = ['svapnastra-beta-v1', 'svapnastra-beta-v2', 'emotional-day-night-v1', 'dream-analysis-v1'];
   if (!KNOWN_STUDY_IDS.includes(studyId))
     return badRequest(res, 'Unknown studyId');
@@ -1556,6 +1557,8 @@ async function studyMorning(req: VercelRequest, res: VercelResponse) {
   const { userId, dreamText, noRecall, dreamValence, dreamArousal,
           nightmareFlag, sleepQuality, sleepHours,
           minutesFromWaking, currentMoodRating } = req.body;
+  if (!userId) return badRequest(res, 'userId is required');
+  if (!requireOwner(req, res, userId)) return;
   const participant = await getActiveParticipant(userId);
   if (!participant) return error(res, 'Not enrolled in an active study', 404);
   const session = await getOrCreateTodaySession(participant);
@@ -1580,6 +1583,8 @@ async function studyDaytime(req: VercelRequest, res: VercelResponse) {
   const { userId, eegFeatures, faa, highBeta, fmt, sqiMean, eegDurationSec,
           samValence, samArousal, samStress, panasItems,
           sleepHoursReported, caffeineServings, significantEventYN } = req.body;
+  if (!userId) return badRequest(res, 'userId is required');
+  if (!requireOwner(req, res, userId)) return;
   const participant = await getActiveParticipant(userId);
   if (!participant) return error(res, 'Not enrolled in an active study', 404);
   const session = await getOrCreateTodaySession(participant);
@@ -1604,6 +1609,8 @@ async function studyEvening(req: VercelRequest, res: VercelResponse) {
           cravingsToday, cravingTypes, exerciseLevel, alcoholDrinks,
           supplementsTaken, medicationsTaken, medicationsDetails,
           stressRightNow, readyForSleep } = req.body;
+  if (!userId) return badRequest(res, 'userId is required');
+  if (!requireOwner(req, res, userId)) return;
   const participant = await getActiveParticipant(userId);
   if (!participant) return error(res, 'Not enrolled in an active study', 404);
   const session = await getOrCreateTodaySession(participant);
@@ -1644,6 +1651,7 @@ async function studyWithdraw(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { userId } = req.body;
   if (!userId) return badRequest(res, 'userId is required');
+  if (!requireOwner(req, res, userId)) return;
   const participant = await getActiveParticipant(userId);
   if (!participant) return error(res, 'No active study enrollment found', 404);
   const db = getDb();
