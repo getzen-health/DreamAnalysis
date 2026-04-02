@@ -2531,6 +2531,9 @@ async function cyclePost(req: VercelRequest, res: VercelResponse) {
   if (!authPayload) return;
   const { date, flowLevel, symptoms, phase, contraception, basalTemp, notes } = req.body;
   if (!date || typeof date !== 'string') return badRequest(res, 'date required (YYYY-MM-DD)');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || isNaN(new Date(date).getTime())) return badRequest(res, 'date must be a valid YYYY-MM-DD');
+  const safeBasalTemp = basalTemp != null ? parseFloat(String(basalTemp)) : null;
+  if (safeBasalTemp !== null && (!isFinite(safeBasalTemp) || safeBasalTemp < 30 || safeBasalTemp > 45)) return badRequest(res, 'basalTemp must be a realistic body temperature (30–45°C)');
   const db = getDb();
   const rl = await checkRateLimit(db, `cycle-post:${authPayload.userId}`, 50, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
@@ -2540,11 +2543,11 @@ async function cyclePost(req: VercelRequest, res: VercelResponse) {
     symptoms: Array.isArray(symptoms) ? symptoms : null,
     phase: phase ?? null,
     contraception: contraception ?? null,
-    basalTemp: basalTemp != null ? String(basalTemp) : null,
+    basalTemp: safeBasalTemp !== null ? String(safeBasalTemp) : null,
     notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
   }).onConflictDoUpdate({
     target: [schema.cycleTracking.userId, schema.cycleTracking.date],
-    set: { flowLevel: flowLevel ?? null, symptoms: Array.isArray(symptoms) ? symptoms : null, phase: phase ?? null, contraception: contraception ?? null, basalTemp: basalTemp != null ? String(basalTemp) : null, notes: typeof notes === 'string' ? notes.substring(0, 500) : null },
+    set: { flowLevel: flowLevel ?? null, symptoms: Array.isArray(symptoms) ? symptoms : null, phase: phase ?? null, contraception: contraception ?? null, basalTemp: safeBasalTemp !== null ? String(safeBasalTemp) : null, notes: typeof notes === 'string' ? notes.substring(0, 500) : null },
   }).returning();
   return success(res, row, 201);
 }
