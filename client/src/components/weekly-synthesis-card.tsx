@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, BookOpen, RefreshCw } from "lucide-react";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import type { WeeklySynthesisResponse } from "@/lib/weekly-synthesis";
 
 interface Props {
@@ -18,14 +18,7 @@ export function WeeklySynthesisCard({ userId }: Props) {
     setState("loading");
     setErrorMsg("");
     try {
-      const res = await fetch(resolveUrl(`/api/dream-weekly-synthesis/${userId}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.message ?? `HTTP ${res.status}`);
-      }
+      const res = await apiRequest("POST", `/api/dream-weekly-synthesis/${userId}`);
       const json: WeeklySynthesisResponse = await res.json();
       setData(json);
       setState("done");
