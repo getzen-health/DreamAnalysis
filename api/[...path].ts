@@ -1858,6 +1858,47 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Reality tests ────────────────────────────────────────────────────────────
+
+async function realityTestPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId, result, notes } = req.body;
+  if (!userId || typeof userId !== 'string') return badRequest(res, 'userId required');
+  const validResults = ['dreaming', 'awake', 'unsure'];
+  if (!result || !validResults.includes(result)) return badRequest(res, 'result must be dreaming, awake, or unsure');
+  const db = getDb();
+  const [row] = await db.insert(schema.realityTests).values({
+    userId, result,
+    notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function realityTestGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [total, todayRows] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(schema.realityTests).where(eq(schema.realityTests.userId, userId)),
+    db.select({ timestamp: schema.realityTests.timestamp }).from(schema.realityTests)
+      .where(and(eq(schema.realityTests.userId, userId), gte(schema.realityTests.timestamp, today)))
+      .orderBy(desc(schema.realityTests.timestamp)),
+  ]);
+  // Compute day streak from recent history
+  const recentDays = await db.select({ timestamp: schema.realityTests.timestamp })
+    .from(schema.realityTests).where(eq(schema.realityTests.userId, userId))
+    .orderBy(desc(schema.realityTests.timestamp)).limit(100);
+  const daySet = new Set(recentDays.map((r) => new Date(r.timestamp).toISOString().slice(0, 10)));
+  let streak = 0;
+  const d = new Date();
+  while (daySet.has(d.toISOString().slice(0, 10))) {
+    streak++;
+    d.setDate(d.getDate() - 1);
+  }
+  return success(res, { todayCount: todayRows.length, streak, totalCount: total[0]?.count ?? 0 });
+}
+
 // ── Cycle tracking ───────────────────────────────────────────────────────────
 
 async function cyclePost(req: VercelRequest, res: VercelResponse) {
@@ -2206,6 +2247,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'readings') {
       if (!s1 && req.method === 'POST') return await readingsCreate(req, res);
       if (s1 && req.method === 'GET')   return await readingsList(req, res, s1);
+    }
+
+    if (s0 === 'reality-test') {
+      if (!s1 && req.method === 'POST') return await realityTestPost(req, res);
+      if (s1 && req.method === 'GET') return await realityTestGet(req, res, s1);
     }
 
     if (s0 === 'cycle') {
