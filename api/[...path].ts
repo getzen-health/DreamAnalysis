@@ -1304,14 +1304,18 @@ async function emotionReadingsBatch(req: VercelRequest, res: VercelResponse) {
   const parsed = z.object({ readings: z.array(emotionReadingSchema).min(1).max(50) }).safeParse(body);
   if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid readings');
   const db = getDb();
-  for (const r of parsed.data.readings) {
-    await db.insert(schema.emotionReadings).values({
-      userId: r.userId, sessionId: r.sessionId ?? null,
-      stress: r.stress, happiness: r.happiness, focus: r.focus, energy: r.energy,
-      dominantEmotion: r.dominantEmotion, valence: r.valence ?? null, arousal: r.arousal ?? null,
-    }).catch(() => {});
+  const rows = parsed.data.readings.map((r) => ({
+    userId: r.userId, sessionId: r.sessionId ?? null,
+    stress: r.stress, happiness: r.happiness, focus: r.focus, energy: r.energy,
+    dominantEmotion: r.dominantEmotion, valence: r.valence ?? null, arousal: r.arousal ?? null,
+  }));
+  try {
+    await db.insert(schema.emotionReadings).values(rows).onConflictDoNothing();
+  } catch (err) {
+    console.error('[emotionReadingsBatch]', err instanceof Error ? err.message : err);
+    return error(res, 'Failed to save readings', 500);
   }
-  return success(res, { saved: parsed.data.readings.length }, 201);
+  return success(res, { saved: rows.length }, 201);
 }
 
 const userReadingSchema = z.object({
