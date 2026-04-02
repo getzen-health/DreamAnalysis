@@ -37,7 +37,7 @@ export default function ExerciseLibrary() {
   const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
 
   // Fetch all exercises
-  const { data: exercises = [], isLoading } = useQuery<Exercise[]>({
+  const { data: exercises = [], isLoading, isError } = useQuery<Exercise[]>({
     queryKey: ["/api/exercises"],
     staleTime: 5 * 60_000,
   });
@@ -162,7 +162,13 @@ export default function ExerciseLibrary() {
       </motion.div>
 
       {/* Exercise Grid */}
-      {isLoading ? (
+      {isError ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <Dumbbell className="h-10 w-10 mx-auto mb-3 opacity-40" />
+          <p className="text-sm font-medium">Failed to load exercises</p>
+          <p className="text-xs mt-1">Check your connection and try again</p>
+        </div>
+      ) : isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4].map((i) => (
             <div
