@@ -76,7 +76,7 @@ export default function SettingsPage() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const response = await fetch(resolveUrl(`/api/settings/${userId}`));
+        const response = await apiRequest("GET", `/api/settings/${userId}`);
         if (response.ok) {
           const data = await response.json();
           setSettings((prev) => ({ ...prev, ...data }));
@@ -92,11 +92,7 @@ export default function SettingsPage() {
   const saveSettings = useCallback(
     async (updated: SettingsState) => {
       try {
-        await fetch(resolveUrl(`/api/settings/${userId}`), {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updated),
-        });
+        await apiRequest("PUT", `/api/settings/${userId}`, updated);
       } catch (error) {
         console.error("Failed to save settings:", error);
       }
@@ -116,7 +112,7 @@ export default function SettingsPage() {
   const handleDataExport = async () => {
     setExportingData(true);
     try {
-      const response = await fetch(resolveUrl(`/api/export/${userId}`));
+      const response = await apiRequest("GET", `/api/export/${userId}`);
       if (!response.ok) throw new Error("Export request failed");
       const blob = await response.blob();
       const dlUrl = URL.createObjectURL(blob);
@@ -136,7 +132,7 @@ export default function SettingsPage() {
   const handleDreamExport = async () => {
     setExportingDreams(true);
     try {
-      const response = await fetch(resolveUrl(`/api/export/${userId}?type=dreams`));
+      const response = await apiRequest("GET", `/api/export/${userId}?type=dreams`);
       if (!response.ok) throw new Error("Export request failed");
       const blob = await response.blob();
       const dlUrl = URL.createObjectURL(blob);
@@ -156,11 +152,7 @@ export default function SettingsPage() {
   const handleSeedDemo = async () => {
     setSeedingDemo(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl("/api/seed-demo"), {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await apiRequest("POST", "/api/seed-demo");
       const data = await res.json();
       if (res.ok) {
         toast({ title: "Demo data loaded", description: data.message });
@@ -176,9 +168,7 @@ export default function SettingsPage() {
 
   const handleClearAllData = async () => {
     try {
-      await fetch(resolveUrl(`/api/settings/${userId}/data`), {
-        method: "DELETE",
-      });
+      await apiRequest("DELETE", `/api/settings/${userId}/data`);
       setSettings(defaultSettings);
       toast({
         title: "Data Cleared",
@@ -1373,12 +1363,12 @@ function DataPrivacyCard({ userId }: { userId: string }) {
   const { data: historyData } = useQuery({
     queryKey: ["export-history", userId],
     queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/user/${userId}/export-history`), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) return { exportHistory: [] as string[] };
-      return res.json() as Promise<{ exportHistory: string[] }>;
+      try {
+        const res = await apiRequest("GET", `/api/user/${userId}/export-history`);
+        return res.json() as Promise<{ exportHistory: string[] }>;
+      } catch {
+        return { exportHistory: [] as string[] };
+      }
     },
     staleTime: 60_000,
     retry: false,
@@ -1389,14 +1379,7 @@ function DataPrivacyCard({ userId }: { userId: string }) {
   const handleFullExport = async () => {
     setIsExporting(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/user/${userId}/export-all`), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).error ?? "Export failed");
-      }
+      const res = await apiRequest("GET", `/api/user/${userId}/export-all`);
       const data = await res.json();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -1429,19 +1412,8 @@ function DataPrivacyCard({ userId }: { userId: string }) {
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/user/${userId}`), {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ confirm: true }),
-      });
+      const res = await apiRequest("DELETE", `/api/user/${userId}`, { confirm: true });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error((data as any).error ?? "Deletion request failed");
-      }
       toast({
         title: "Deletion request submitted",
         description: `Your account is scheduled for permanent deletion on ${new Date((data as any).scheduledDeletionDate).toLocaleDateString()}. You have 30 days to cancel by contacting support.`,
