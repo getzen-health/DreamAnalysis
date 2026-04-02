@@ -12,6 +12,7 @@ import { useHealthSync } from "@/hooks/use-health-sync";
 import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
 import { Heart, Activity, TrendingUp } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AreaChart,
   Area,
@@ -136,7 +137,7 @@ export default function HeartRate() {
   const rhr = latestPayload?.resting_heart_rate ?? null;
 
   // Fetch 7-day heart rate history
-  const { data: hrHistory } = useQuery<
+  const { data: hrHistory, isLoading: hrLoading } = useQuery<
     Array<{ value: number; recorded_at: string }>
   >({
     queryKey: [`/api/health/heart-rate/${userId}?days=7`],
@@ -441,7 +442,13 @@ export default function HeartRate() {
       </motion.div>
 
       {/* Empty state — no data at all */}
-      {rhr === null && hr === null && chartData.length === 0 && (
+      {hrLoading && (
+        <div className="rounded-2xl border border-border bg-card p-4 mt-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+          <Skeleton className="h-3 w-40 rounded mb-3" />
+          <Skeleton className="h-44 w-full rounded-lg" />
+        </div>
+      )}
+      {!hrLoading && rhr === null && hr === null && chartData.length === 0 && (
         <motion.div
           custom={5}
           variants={cardVariants}

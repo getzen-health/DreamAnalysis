@@ -13,6 +13,7 @@ import { useHealthSync } from "@/hooks/use-health-sync";
 import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
 import { Footprints, TrendingUp, Flame, MapPin } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   BarChart,
   Bar,
@@ -147,7 +148,7 @@ export default function Steps() {
   const userId = useMemo(() => getParticipantId(), []);
 
   // Fetch 7-day steps history
-  const { data: stepsHistory } = useQuery<
+  const { data: stepsHistory, isLoading: stepsLoading } = useQuery<
     Array<{ value: number; recorded_at: string }>
   >({
     queryKey: [`/api/health/steps/${userId}?days=7`],
@@ -298,7 +299,12 @@ export default function Steps() {
       </div>
 
       {/* 7-day bar chart */}
-      {weeklyChartData.length > 0 ? (
+      {stepsLoading ? (
+        <div className="rounded-2xl border border-border bg-card p-4" style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}>
+          <Skeleton className="h-3 w-40 rounded mb-3" />
+          <Skeleton className="h-44 w-full rounded-lg" />
+        </div>
+      ) : weeklyChartData.length > 0 ? (
         <motion.div
           custom={5}
           variants={cardVariants}
