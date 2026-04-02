@@ -917,6 +917,10 @@ async function notificationsSubscribe(req: VercelRequest, res: VercelResponse) {
   try { new URL(endpoint); } catch { return badRequest(res, 'endpoint must be a valid URL'); }
   if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   const db = getDb();
+  // Deduplicate: return existing record if this endpoint is already registered
+  const [existing] = await db.select().from(schema.pushSubscriptions)
+    .where(eq(schema.pushSubscriptions.endpoint, endpoint)).limit(1);
+  if (existing) return success(res, existing);
   const [sub] = await db.insert(schema.pushSubscriptions).values({ userId, endpoint, keys }).returning();
   return success(res, sub, 201);
 }
