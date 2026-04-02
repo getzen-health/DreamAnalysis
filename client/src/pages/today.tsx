@@ -779,14 +779,10 @@ export default function Today() {
     queryKey: ["dream-analysis-latest", userId],
     queryFn: async () => {
       try {
-        const res = await fetch(resolveUrl(`/api/dream-analysis/${userId}`));
-        if (res.ok) {
-          const all: DreamAnalysisRow[] = await res.json();
-          // Return only the most recent one
-          return all.length > 0 ? [all[all.length - 1]] : [];
-        }
-      } catch { /* API unavailable */ }
-      return [];
+        const res = await apiRequest("GET", `/api/dream-analysis/${userId}`);
+        const all: DreamAnalysisRow[] = await res.json();
+        return all.length > 0 ? [all[all.length - 1]] : [];
+      } catch { return []; }
     },
     staleTime: 5 * 60_000,
     enabled: !!userId,
@@ -1029,11 +1025,9 @@ export default function Today() {
     queryFn: async () => {
       let apiLogs: FoodLog[] = [];
       try {
-        const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data)) apiLogs = data;
-        }
+        const res = await apiRequest("GET", `/api/food/logs/${userId}`);
+        const data = await res.json();
+        if (Array.isArray(data)) apiLogs = data;
       } catch { /* API unavailable */ }
       // Supabase
       let sbLogs: FoodLog[] = [];

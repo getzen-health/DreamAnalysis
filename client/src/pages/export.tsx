@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -160,8 +160,7 @@ export default function ExportPage() {
   const handleExportHealth = async () => {
     setExportingHealth(true);
     try {
-      const response = await fetch(resolveUrl(`/api/export/${CURRENT_USER}`));
-      if (!response.ok) throw new Error("Export request failed");
+      const response = await apiRequest("GET", `/api/export/${CURRENT_USER}`);
       const blob = await response.blob();
       downloadBlob(blob, `health_data_${new Date().toISOString().slice(0, 10)}.csv`);
     } catch {
@@ -174,8 +173,7 @@ export default function ExportPage() {
   const handleExportDreams = async () => {
     setExportingDreams(true);
     try {
-      const response = await fetch(resolveUrl(`/api/export/${CURRENT_USER}?type=dreams`));
-      if (!response.ok) throw new Error("Export request failed");
+      const response = await apiRequest("GET", `/api/export/${CURRENT_USER}?type=dreams`);
       const blob = await response.blob();
       downloadBlob(blob, `dream_analysis_${new Date().toISOString().slice(0, 10)}.csv`);
     } catch {

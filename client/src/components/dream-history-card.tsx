@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { BookOpen, Moon, Sparkles, Search, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import {
   isNightmare,
   isLucid,
@@ -181,9 +181,7 @@ export function DreamHistoryCard({ userId }: Props) {
   const { data: rawData, isLoading } = useQuery<DreamEntry[]>({
     queryKey: ["dream-analysis", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/dream-analysis/${userId}`));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      const res = await apiRequest("GET", `/api/dream-analysis/${userId}`); return res.json();
     },
     staleTime: 2 * 60 * 1000,
   });

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { type SessionSummary, type SleepMoodPrediction, predictSleepMood } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -283,7 +283,7 @@ export default function DailyBrainReport() {
     useQuery<SessionSummary[]>({
       queryKey: ["sessions-brain-report", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch(resolveUrl(`/api/ml/sessions?user_id=${encodeURIComponent(CURRENT_USER)}`));
+        const res = await apiRequest("GET", `/api/ml/sessions?user_id=${encodeURIComponent(CURRENT_USER)}`);
         if (!res.ok) return [];
         return res.json();
       },
@@ -295,7 +295,7 @@ export default function DailyBrainReport() {
     useQuery<DreamEntry[]>({
       queryKey: ["dreams-brain-report", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch(resolveUrl(`/api/dream-analysis/${CURRENT_USER}`));
+        const res = await apiRequest("GET", `/api/dream-analysis/${CURRENT_USER}`);
         if (!res.ok) return [];
         return res.json();
       },
@@ -307,7 +307,7 @@ export default function DailyBrainReport() {
     useQuery<HealthEntry[]>({
       queryKey: ["health-brain-report", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch(resolveUrl(`/api/health-metrics/${CURRENT_USER}`));
+        const res = await apiRequest("GET", `/api/health-metrics/${CURRENT_USER}`);
         if (!res.ok) return [];
         return res.json();
       },
@@ -319,7 +319,7 @@ export default function DailyBrainReport() {
     useQuery<VoiceSnapshot | null>({
       queryKey: ["voice-latest-brain-report", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch(resolveUrl(`/api/ml/voice-watch/latest/${CURRENT_USER}`));
+        const res = await apiRequest("GET", `/api/ml/voice-watch/latest/${CURRENT_USER}`);
         if (!res.ok) return null;
         const data = await res.json();
         // Normalize: empty array or non-object payloads → null
@@ -334,7 +334,7 @@ export default function DailyBrainReport() {
     useQuery<{ userId: string; insights: ServerInsight[] }>({
       queryKey: ["yesterday-insights", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch(resolveUrl(`/api/brain/yesterday-insights/${CURRENT_USER}`));
+        const res = await apiRequest("GET", `/api/brain/yesterday-insights/${CURRENT_USER}`);
         if (!res.ok) return { userId: CURRENT_USER, insights: [] };
         return res.json();
       },
@@ -346,7 +346,7 @@ export default function DailyBrainReport() {
     useQuery<{ userId: string; dataPoints: number; patterns: BrainPattern[] }>({
       queryKey: ["brain-patterns", CURRENT_USER],
       queryFn: async () => {
-        const res = await fetch(resolveUrl(`/api/brain/patterns/${CURRENT_USER}`));
+        const res = await apiRequest("GET", `/api/brain/patterns/${CURRENT_USER}`);
         if (!res.ok) return { userId: CURRENT_USER, dataPoints: 0, patterns: [] };
         return res.json();
       },
