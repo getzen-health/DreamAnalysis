@@ -1661,7 +1661,7 @@ function BarcodePanel({
             border: "none", cursor: "pointer",
           }}
         >
-          {loading ? "..." : "Look Up"}
+          {loading ? "Searching…" : "Look Up"}
         </button>
       </div>
 

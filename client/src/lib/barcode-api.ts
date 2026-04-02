@@ -61,13 +61,21 @@ export async function lookupBarcode(barcode: string): Promise<BarcodeProduct | n
 
   const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(trimmed)}.json`;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
   let response: Response;
   try {
     response = await fetch(url, {
       headers: { "User-Agent": "NeuralDreamWorkshop/1.0 (https://neuraldream.app)" },
+      signal: controller.signal,
     });
   } catch (err) {
-    throw new Error(`Network error looking up barcode: ${(err as Error).message}`);
+    const msg = (err as Error).message;
+    if ((err as Error).name === "AbortError") throw new Error("Barcode lookup timed out — please try again");
+    throw new Error(`Network error looking up barcode: ${msg}`);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!response.ok) {
