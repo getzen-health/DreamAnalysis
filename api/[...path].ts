@@ -763,6 +763,7 @@ async function healthSamplesPost(req: VercelRequest, res: VercelResponse) {
 
 async function healthSamplesGet(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   try {
     const db = getDb();
     const metric = (req.query.metric as string) || 'heart_rate';

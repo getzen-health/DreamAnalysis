@@ -12,6 +12,7 @@ import {
   Flame, Calendar, Trophy, BarChart3, Heart, Brain, Palette,
   Bell, Download, Lock, HelpCircle, Watch, Sun, ChevronRight, Link2, type LucideIcon,
 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ChronotypeQuiz } from "@/components/chronotype-quiz";
 import { getStoredChronotype, type ChronotypeCategory } from "@/lib/chronotype";
 import { loadPersonalAdapter, resetPersonalAdapter, getPersonalizationStats } from "@/lib/personal-adapter";
@@ -209,7 +210,7 @@ export default function You() {
   }, [supabaseCorrectionCount]);
 
   // Sessions from ML backend (Railway) — where voice check-in data actually lives
-  const { data: sessionList } = useQuery<SessionSummary[]>({
+  const { data: sessionList, isLoading: sessionsLoading } = useQuery<SessionSummary[]>({
     queryKey: ["sessions", userId],
     queryFn: () => listSessions(userId),
     staleTime: 30_000,
@@ -303,13 +304,21 @@ export default function You() {
       >
         {/* Streak */}
         <div className="glass-card rounded-2xl p-3.5 text-center">
-          <div className="text-[28px] font-bold bg-gradient-to-r from-yellow-500 to-amber-500 bg-clip-text text-transparent">{streak}</div>
+          {sessionsLoading ? (
+            <Skeleton className="h-8 w-10 rounded mx-auto mb-1" />
+          ) : (
+            <div className="text-[28px] font-bold bg-gradient-to-r from-yellow-500 to-amber-500 bg-clip-text text-transparent">{streak}</div>
+          )}
           <div className="text-[11px] text-muted-foreground mt-0.5 flex items-center justify-center gap-1">Day Streak <Flame className="w-3 h-3 text-amber-500" /></div>
         </div>
 
         {/* Sessions */}
         <div className="glass-card rounded-2xl p-3.5 text-center">
-          <div className="text-[28px] font-bold bg-gradient-to-r from-cyan-500 to-cyan-600 bg-clip-text text-transparent">{sessions}</div>
+          {sessionsLoading ? (
+            <Skeleton className="h-8 w-10 rounded mx-auto mb-1" />
+          ) : (
+            <div className="text-[28px] font-bold bg-gradient-to-r from-cyan-500 to-cyan-600 bg-clip-text text-transparent">{sessions}</div>
+          )}
           <div className="text-[11px] text-muted-foreground mt-0.5">Sessions Total</div>
         </div>
       </motion.div>
