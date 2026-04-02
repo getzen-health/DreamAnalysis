@@ -1921,6 +1921,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Inner Score
     if (s0 === 'inner-score' && s1) {
+      if (!requireOwner(req, res, s1)) return;
       if (segs[2] === 'history' && req.method === 'GET') return await innerScoreHistory(req, res, s1);
       if (req.method === 'POST') return await innerScorePost(req, res, s1);
       if (req.method === 'GET') return await innerScoreGet(req, res, s1);
@@ -1929,7 +1930,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Streaks
     if (s0 === 'streaks') {
       if (s1 === 'checkin' && req.method === 'POST') return await streaksCheckin(req, res);
-      if (s1 && req.method === 'GET') return await streaksGet(req, res, s1);
+      if (s1 && req.method === 'GET') {
+        if (!requireOwner(req, res, s1)) return;
+        return await streaksGet(req, res, s1);
+      }
     }
 
     // Emotion readings batch
@@ -2088,9 +2092,10 @@ function computeCurrentStreak(dates: string[], today: string): number {
 
 async function streaksCheckin(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
   const body = await parseRequestBody(req) as any;
-  const uid = body?.userId || body?.user_id;
-  if (!uid) return badRequest(res, 'userId required');
+  const uid = authPayload.userId;
 
   const today = new Date().toISOString().slice(0, 10);
   const db = getDb();
