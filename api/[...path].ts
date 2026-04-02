@@ -906,6 +906,7 @@ async function insightsWeekly(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const userId = req.query.userId as string;
   if (!userId) return error(res, 'userId required', 400);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   // Rate limit: 10 weekly insight requests per user per hour
   const rl = await checkRateLimit(db, `insights-weekly:${userId}`, 10, 60);
@@ -965,11 +966,15 @@ async function notificationsVapidPublicKey(_req: VercelRequest, res: VercelRespo
 
 async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
   const vapidPublic = process.env.VAPID_PUBLIC_KEY;
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
   if (!vapidPublic || !vapidPrivate) return error(res, 'VAPID keys not configured', 503);
 
   const { userId, title = 'AntarAI', body = 'Good morning! Your brain report is ready.', url = '/brain-report' } = req.body;
+  // If userId provided, it must match the authenticated user (no cross-user notification triggering)
+  if (userId && userId !== authPayload.userId) return error(res, 'Forbidden', 403);
 
   const db = getDb();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1049,10 +1054,11 @@ const FOOD_JSON_SCHEMA = `{
 
 async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
   const body = req.body ?? {};
-  const { userId, imageBase64, textDescription, mealType, moodBefore, notes } = body;
-  if (!userId) return badRequest(res, 'userId required');
-  if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
+  const { imageBase64, textDescription, mealType, moodBefore, notes } = body;
+  const userId = authPayload.userId;
   if (!textDescription && !imageBase64) return badRequest(res, 'Provide a photo or describe what you ate');
   if (textDescription && (typeof textDescription !== 'string' || textDescription.length > 1000)) return badRequest(res, 'Description must be ≤1000 characters');
   // ~10 MB base64 limit — prevents memory exhaustion and excessive vision API costs
