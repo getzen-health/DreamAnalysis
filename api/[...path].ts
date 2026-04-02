@@ -747,15 +747,17 @@ async function healthSamplesPost(req: VercelRequest, res: VercelResponse) {
     }
     if (!requireOwner(req, res, user_id)) return;
     const rows = samples
-      .filter((s) => typeof s.value === 'number' && !isNaN(s.value))
+      .filter((s) => typeof s.value === 'number' && !isNaN(s.value)
+        && typeof s.source === 'string' && s.source.length > 0
+        && typeof s.metric === 'string' && s.metric.length > 0)
       .map((s) => {
         const recordedAt = s.recorded_at ? new Date(s.recorded_at) : new Date();
         return {
           userId: user_id,
-          source: s.source,
-          metric: s.metric,
+          source: s.source.slice(0, 100),
+          metric: s.metric.slice(0, 100),
           value: s.value,
-          unit: s.unit ?? null,
+          unit: typeof s.unit === 'string' ? s.unit.slice(0, 50) : null,
           metadata: (s.metadata ?? null) as Record<string, unknown> | null,
           recordedAt: isNaN(recordedAt.getTime()) ? new Date() : recordedAt,
         };
