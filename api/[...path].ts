@@ -2104,16 +2104,18 @@ async function workoutsPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const authPayload = requireAuth(req, res);
   if (!authPayload) return;
-  const { name, workoutType, startedAt, notes } = req.body;
-  if (!workoutType || typeof workoutType !== 'string') return badRequest(res, 'workoutType required');
+  const { startedAt } = req.body;
+  const workoutType = typeof req.body.workoutType === 'string' ? req.body.workoutType.trim() : '';
+  if (!workoutType) return badRequest(res, 'workoutType required');
+  if (workoutType.length > 50) return badRequest(res, 'workoutType must be ≤50 chars');
   const db = getDb();
   const [row] = await db.insert(schema.workouts).values({
     userId: authPayload.userId,
-    name: typeof name === 'string' ? name.substring(0, 100) : null,
+    name: typeof req.body.name === 'string' ? req.body.name.trim().substring(0, 100) : null,
     workoutType,
     startedAt: startedAt ? new Date(startedAt) : new Date(),
     source: 'manual',
-    notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
+    notes: typeof req.body.notes === 'string' ? req.body.notes.trim().substring(0, 500) : null,
   }).returning();
   return success(res, row, 201);
 }
@@ -3882,6 +3884,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 // ── Inner Score handlers ─────────────────────────────────────────────────────
 
 async function innerScoreGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const fourHoursAgo = new Date(Date.now() - 4 * 3600_000);
   const [cached] = await db.select().from(schema.innerScores)
