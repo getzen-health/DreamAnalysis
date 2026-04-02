@@ -28,7 +28,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 // ── tuning parameters ────────────────────────────────────────────────────────
 
@@ -252,23 +252,19 @@ export function useAmbientVoice(): UseAmbientVoiceReturn {
         setError(null);
 
         // Persist to user_readings for model retraining (fire-and-forget)
-        fetch(resolveUrl("/api/readings"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: resolvedUserId,
-            source: "voice_ambient",
-            emotion: result.emotion,
-            valence: result.valence,
-            arousal: result.arousal,
-            stress: result.stress_index ?? null,
-            confidence: result.confidence,
-            modelType: result.model_type,
-            features: {
-              probabilities: result.probabilities,
-              focus_index: result.focus_index,
-            },
-          }),
+        apiRequest("POST", "/api/readings", {
+          userId: resolvedUserId,
+          source: "voice_ambient",
+          emotion: result.emotion,
+          valence: result.valence,
+          arousal: result.arousal,
+          stress: result.stress_index ?? null,
+          confidence: result.confidence,
+          modelType: result.model_type,
+          features: {
+            probabilities: result.probabilities,
+            focus_index: result.focus_index,
+          },
         }).catch(() => {});
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error";

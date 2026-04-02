@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Eye, Flame, CheckCircle2 } from "lucide-react";
 import { getParticipantId } from "@/lib/participant";
-import { apiRequest, resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 const USER_ID = getParticipantId();
 
@@ -37,7 +37,7 @@ export function RealityTestCard() {
   const { data: stats } = useQuery<Stats>({
     queryKey: ["/api/reality-test", USER_ID],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/reality-test/${USER_ID}`));
+      const res = await apiRequest("GET", `/api/reality-test/${USER_ID}`);
       if (!res.ok) return { todayCount: 0, streak: 0, totalCount: 0 };
       return res.json();
     },

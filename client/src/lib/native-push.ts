@@ -27,7 +27,7 @@
 
 import { Capacitor } from "@capacitor/core";
 import { getParticipantId } from "./participant";
-import { resolveUrl } from "./queryClient";
+import { apiRequest } from "./queryClient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,14 +48,10 @@ function getPlatform(): "ios" | "android" {
 
 async function registerTokenWithServer(token: string): Promise<void> {
   const userId = getParticipantId();
-  await fetch(resolveUrl("/api/notifications/native-token"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      userId,
-      token,
-      platform: getPlatform(),
-    }),
+  await apiRequest("POST", "/api/notifications/native-token", {
+    userId,
+    token,
+    platform: getPlatform(),
   });
 }
 

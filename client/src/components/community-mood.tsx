@@ -5,7 +5,7 @@
  */
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { Users } from "lucide-react";
 import { sbGetSetting, sbSaveSetting } from "../lib/supabase-store";
 
@@ -24,18 +24,14 @@ export function CommunityMood() {
 
   const { data: feed } = useQuery<MoodFeed>({
     queryKey: ["community-mood-feed"],
-    queryFn: () => fetch(resolveUrl("/api/community/mood-feed")).then(r => r.json()),
+    queryFn: () => apiRequest("GET", "/api/community/mood-feed").then(r => r.json()),
     staleTime: 60 * 1000,
     retry: false,
   });
 
   const shareMutation = useMutation({
     mutationFn: (emotion: string) =>
-      fetch(resolveUrl("/api/community/share-mood"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emotion }),
-      }).then(r => r.json()),
+      apiRequest("POST", "/api/community/share-mood", { emotion }).then(r => r.json()),
     onSuccess: () => {
       setShared(true);
       queryClient.invalidateQueries({ queryKey: ["community-mood-feed"] });
