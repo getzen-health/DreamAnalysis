@@ -5,6 +5,7 @@ import { unauthorized } from './response.js';
 export interface JWTPayload {
   userId: string;
   username: string;
+  role: 'user' | 'admin';
 }
 
 function getJWTSecret(): string {
@@ -88,17 +89,14 @@ export function requireOwner(req: VercelRequest, res: VercelResponse, requestedU
   return auth;
 }
 
-/** List of usernames that have admin access to study endpoints. */
-const ADMIN_USERNAMES = new Set(['sravya', 'admin']);
-
 /**
- * Require auth AND verify the user has admin role.
+ * Require auth AND verify the user has admin role (stored in JWT, sourced from DB at login).
  * Returns the JWT payload if authorized, null if not (response already sent).
  */
 export function requireAdmin(req: VercelRequest, res: VercelResponse): JWTPayload | null {
   const auth = requireAuth(req, res);
   if (!auth) return null; // 401 already sent
-  if (!ADMIN_USERNAMES.has(auth.username?.toLowerCase())) {
+  if (auth.role !== 'admin') {
     res.status(403).json({ error: 'Forbidden — admin access required' });
     return null;
   }
