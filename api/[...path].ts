@@ -533,16 +533,32 @@ async function aiChatPost(req: VercelRequest, res: VercelResponse) {
   if (!message || !userId) return badRequest(res, 'Missing message or userId');
   const db = getDb();
   await db.insert(schema.aiChats).values({ userId, message, isUser: true });
-  const recentMetrics = await db.select().from(schema.healthMetrics)
-    .where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp)).limit(5);
+
+  // Fetch last 10 messages for conversation context (5 turns)
+  const [recentMetrics, recentHistory] = await Promise.all([
+    db.select().from(schema.healthMetrics)
+      .where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp)).limit(5),
+    db.select().from(schema.aiChats)
+      .where(eq(schema.aiChats.userId, userId)).orderBy(desc(schema.aiChats.timestamp)).limit(11),
+  ]);
+
   const ctx = recentMetrics.length > 0
     ? `Recent health data: HR ${recentMetrics[0].heartRate}, stress ${recentMetrics[0].stressLevel}, sleep quality ${recentMetrics[0].sleepQuality}.`
     : '';
+
+  // Build conversation history (exclude the message just inserted, reverse to chronological)
+  const historyMsgs: { role: 'user' | 'assistant'; content: string }[] = recentHistory
+    .filter((c) => c.message !== message || !c.isUser) // exclude the just-saved user msg
+    .slice(0, 10)
+    .reverse()
+    .map((c) => ({ role: c.isUser ? 'user' : 'assistant', content: c.message }));
+
   const openai = getOpenAIClient();
   const resp = await openai.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
     messages: [
       { role: 'system', content: `You are an AI wellness companion for a Brain-Computer Interface system. ${ctx} Be supportive and concise.` },
+      ...historyMsgs,
       { role: 'user', content: message },
     ],
   });
