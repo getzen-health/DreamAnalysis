@@ -32,6 +32,7 @@ import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, H
 import { recordCorrection } from "@/lib/feedback-sync";
 import { updateModalityAccuracy } from "@/lib/multimodal-fusion";
 import { MoodPicker } from "@/components/mood-picker";
+import { SectionErrorBoundary } from "@/components/section-error-boundary";
 import { RecoveryInterventions } from "@/components/recovery-interventions";
 import { EnergyTimeline } from "@/components/energy-timeline";
 import { useScores } from "@/hooks/use-scores";
@@ -1558,6 +1559,7 @@ export default function Today() {
 
           {/* ── 2. Inner Score Hero ── */}
           <motion.div variants={itemVariants} className="mb-4">
+            <SectionErrorBoundary label="Inner Score">
             <InnerScoreCard
               score={innerScore.score}
               tier={innerScore.tier}
@@ -1566,21 +1568,28 @@ export default function Today() {
               delta={null}
               trend={[]}
             />
+            </SectionErrorBoundary>
           </motion.div>
 
           {/* ── 2b. Personal Insights (cross-modal correlations) ── */}
           <motion.div variants={itemVariants} className="mb-4">
-            <PersonalInsightsCard insights={personalInsights} />
+            <SectionErrorBoundary label="Personal Insights">
+              <PersonalInsightsCard insights={personalInsights} />
+            </SectionErrorBoundary>
           </motion.div>
 
           {/* ── 2c. Dream + Biometric Fusion ── */}
           <motion.div variants={itemVariants} className="mb-4">
-            <DreamFusionCard insight={dreamFusionInsight} />
+            <SectionErrorBoundary label="Dream Fusion">
+              <DreamFusionCard insight={dreamFusionInsight} />
+            </SectionErrorBoundary>
           </motion.div>
 
           {/* ── 2d. Predictive Alerts (tomorrow's forecast) ── */}
           <motion.div variants={itemVariants} className="mb-4">
-            <PredictiveAlertCard alert={predictiveAlert} />
+            <SectionErrorBoundary label="Predictive Alerts">
+              <PredictiveAlertCard alert={predictiveAlert} />
+            </SectionErrorBoundary>
           </motion.div>
 
           {/* ── 3. Stress & Energy Row (mini cards) ── */}
@@ -2070,29 +2079,35 @@ export default function Today() {
 
           {/* ── 4c. Brain Coach — EEG + health fusion ── */}
           <motion.div variants={itemVariants}>
-            <BrainCoachCard
-              recoveryScore={userScores?.recoveryScore ?? null}
-              sleepScore={userScores?.sleepScore ?? null}
-              stressScore={userScores?.stressScore ?? null}
-              strainScore={userScores?.strainScore ?? null}
-              avgFocus={brainTotals?.avgFocus ?? null}
-              avgValence={brainTotals?.avgValence ?? null}
-            />
+            <SectionErrorBoundary label="Brain Coach">
+              <BrainCoachCard
+                recoveryScore={userScores?.recoveryScore ?? null}
+                sleepScore={userScores?.sleepScore ?? null}
+                stressScore={userScores?.stressScore ?? null}
+                strainScore={userScores?.strainScore ?? null}
+                avgFocus={brainTotals?.avgFocus ?? null}
+                avgValence={brainTotals?.avgValence ?? null}
+              />
+            </SectionErrorBoundary>
           </motion.div>
 
           {/* ── 4d. EEG Brain Trends — 7-day week-over-week comparison ── */}
           {recentHistory && recentHistory.length > 0 && (
             <motion.div variants={itemVariants}>
-              <EEGWeekCompareCard history={recentHistory} />
+              <SectionErrorBoundary label="EEG Brain Trends">
+                <EEGWeekCompareCard history={recentHistory} />
+              </SectionErrorBoundary>
             </motion.div>
           )}
 
           {/* ── 4e. Energy Timeline Forecast ── */}
           <motion.div variants={itemVariants} className="rounded-[14px] bg-card border border-border p-4">
-            <EnergyTimeline
-              sleepHours={sleepTotal}
-              recovery={scores?.recovery}
-            />
+            <SectionErrorBoundary label="Energy Timeline">
+              <EnergyTimeline
+                sleepHours={sleepTotal}
+                recovery={scores?.recovery}
+              />
+            </SectionErrorBoundary>
           </motion.div>
 
           {/* ── 5. Health Monitor (2-column grid) ── */}

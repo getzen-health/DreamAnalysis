@@ -13,6 +13,7 @@ import { syncFoodLogToML } from "@/lib/ml-api";
 import { RecentReadings, formatTimeAgo } from "@/components/recent-readings";
 import { UtensilsCrossed, Brain as BrainIcon } from "lucide-react";
 import { FoodScoreCard } from "@/components/food-score-card";
+import { SectionErrorBoundary } from "@/components/section-error-boundary";
 import { getEmotionHistory, getFoodLogs as sbGetFoodLogs, sbGetGeneric, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
 import {
   computeMealCognitiveCorrelation,
@@ -3194,7 +3195,9 @@ export default function Nutrition() {
                 borderRadius: 16, padding: 16, marginBottom: 16,
                 boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
-                <VitaminTracker todayLogs={todayLogs} supplementVitamins={supplementVitamins} />
+                <SectionErrorBoundary label="Vitamin Tracker">
+                  <VitaminTracker todayLogs={todayLogs} supplementVitamins={supplementVitamins} />
+                </SectionErrorBoundary>
               </div>
 
               <div style={{
@@ -3202,11 +3205,15 @@ export default function Nutrition() {
                 borderRadius: 16, padding: 16,
                 boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
-                <Glp1Tracker todayLogs={todayLogs} totalProtein={totalProtein} totalCalories={totalCalories} />
+                <SectionErrorBoundary label="GLP-1 Tracker">
+                  <Glp1Tracker todayLogs={todayLogs} totalProtein={totalProtein} totalCalories={totalCalories} />
+                </SectionErrorBoundary>
               </div>
 
               {/* Glucose Section (conditional) */}
-              <GlucoseSection userId={userId} />
+              <SectionErrorBoundary label="Glucose">
+                <GlucoseSection userId={userId} />
+              </SectionErrorBoundary>
             </motion.div>
           )}
 
@@ -3226,7 +3233,9 @@ export default function Nutrition() {
                 borderRadius: 16, padding: 16,
                 boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
-                <SupplementTracker onSupplementsChange={handleSupplementsChange} />
+                <SectionErrorBoundary label="Supplement Tracker">
+                  <SupplementTracker onSupplementsChange={handleSupplementsChange} />
+                </SectionErrorBoundary>
               </div>
 
               {/* GLP-1 Injection Tracker (Task 4) */}
@@ -3235,7 +3244,9 @@ export default function Nutrition() {
                 borderRadius: 16, padding: 16, marginTop: 16,
                 boxShadow: "0 2px 16px rgba(0,0,0,0.06)",
               }}>
-                <Glp1InjectionTracker />
+                <SectionErrorBoundary label="GLP-1 Injection Tracker">
+                  <Glp1InjectionTracker />
+                </SectionErrorBoundary>
               </div>
             </motion.div>
           )}
