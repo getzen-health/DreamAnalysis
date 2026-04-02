@@ -643,7 +643,9 @@ async function emotionsRecord(req: VercelRequest, res: VercelResponse) {
 
 async function emotionsCorrect(req: VercelRequest, res: VercelResponse, id: string) {
   if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
-  const { userCorrectedEmotion, userId } = req.body;
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { userCorrectedEmotion } = req.body;
   const validEmotions = ['happy', 'sad', 'angry', 'fear', 'surprise', 'neutral', 'stress', 'focus', 'relaxed', 'excited'];
   if (!userCorrectedEmotion || !validEmotions.includes(userCorrectedEmotion))
     return badRequest(res, `userCorrectedEmotion must be one of: ${validEmotions.join(', ')}`);
@@ -651,7 +653,7 @@ async function emotionsCorrect(req: VercelRequest, res: VercelResponse, id: stri
   const [existing] = await db.select({ id: schema.emotionReadings.id, userId: schema.emotionReadings.userId })
     .from(schema.emotionReadings).where(eq(schema.emotionReadings.id, id));
   if (!existing) return error(res, 'Reading not found', 404);
-  if (userId && existing.userId !== userId) return unauthorized(res, 'Not your reading');
+  if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your reading');
   const [updated] = await db.update(schema.emotionReadings)
     .set({ userCorrectedEmotion, userCorrectedAt: new Date() })
     .where(eq(schema.emotionReadings.id, id))
