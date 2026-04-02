@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getMLApiUrl } from "@/lib/ml-api";
 import {
   TrendingUp,
@@ -296,7 +296,7 @@ export default function WeeklyBrainSummary() {
   const { data: metrics = [], isLoading: loadingHealth } = useQuery<HealthMetric[]>({
     queryKey: ["/api/health-metrics", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/health-metrics/${CURRENT_USER}`));
+      const res = await apiRequest("GET", `/api/health-metrics/${CURRENT_USER}`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -324,7 +324,7 @@ export default function WeeklyBrainSummary() {
   const { data: foodLogs = [], isLoading: loadingFood } = useQuery<FoodLogEntry[]>({
     queryKey: ["/api/food/logs", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/food/logs/${CURRENT_USER}`));
+      const res = await apiRequest("GET", `/api/food/logs/${CURRENT_USER}`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -335,7 +335,7 @@ export default function WeeklyBrainSummary() {
   const { data: dreamEntries = [], isLoading: loadingDreams } = useQuery<DreamEntry[]>({
     queryKey: ["/api/dream-analysis", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/dream-analysis/${CURRENT_USER}`));
+      const res = await apiRequest("GET", `/api/dream-analysis/${CURRENT_USER}`);
       if (!res.ok) return [];
       return res.json();
     },

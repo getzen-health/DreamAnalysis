@@ -16,7 +16,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import type { VoiceEmotionResult } from "./use-voice-emotion";
 
@@ -48,7 +48,7 @@ export function VoiceCacheProvider({ children }: { children: ReactNode }) {
 
   const fetchLatest = useCallback(async () => {
     try {
-      const res = await fetch(resolveUrl(`/api/ml/voice-watch/latest/${userId}`));
+      const res = await apiRequest("GET", `/api/ml/voice-watch/latest/${userId}`);
       if (!res.ok) return;
       const data = await res.json();
       if (
