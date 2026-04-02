@@ -5,6 +5,7 @@ import { Link, useLocation } from "wouter";
 import { InsightEngine, type StoredInsight } from "@/lib/insight-engine";
 import { MorningBriefingCard } from "@/components/morning-briefing-card";
 import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sparkles, Brain, Heart, UtensilsCrossed,
   TrendingUp, TrendingDown, Minus,
@@ -115,6 +116,7 @@ const PARTICIPANT = getParticipantId();
 
 export default function Insights() {
   const [emotionHistory, setEmotionHistory] = useState<EmotionEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [trendPeriod, setTrendPeriod] = useState<"7d" | "30d">("7d");
 
   // InsightEngine integration
@@ -221,6 +223,7 @@ export default function Insights() {
     // Sort by timestamp and deduplicate
     local.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     setEmotionHistory(local.slice(-1000));
+    setHistoryLoading(false);
   }, [apiHistory]);
 
 
@@ -291,8 +294,34 @@ export default function Insights() {
         onGenerate={handleGenerateBriefing}
       />
 
+      {/* Loading skeleton */}
+      {historyLoading && (
+        <div className="space-y-4">
+          <div className="rounded-[14px] border border-border p-4 space-y-3">
+            <Skeleton className="h-3 w-20" />
+            <div className="grid grid-cols-3 gap-2">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="rounded-[14px] border border-border p-3 space-y-2">
+                  <Skeleton className="h-2 w-12" />
+                  <Skeleton className="h-5 w-10" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-[14px] border border-border p-4 space-y-3">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+          <div className="rounded-[14px] border border-border p-4 space-y-2">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+          </div>
+        </div>
+      )}
+
       {/* No data state */}
-      {!hasData && (
+      {!historyLoading && !hasData && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -317,7 +346,7 @@ export default function Insights() {
         </motion.div>
       )}
 
-      {hasData && (
+      {!historyLoading && hasData && (
         <div className="space-y-6">
           {/* Weekly stats bar */}
           {weeklyStats && (
