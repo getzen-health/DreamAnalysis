@@ -994,7 +994,7 @@ async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
   // Fetch subscriptions — optionally scoped to one user
   const subs = userId
     ? await db.select().from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, userId))
-    : await db.select().from(schema.pushSubscriptions);
+    : await db.select().from(schema.pushSubscriptions).limit(1000);
 
   if (subs.length === 0) return success(res, { sent: 0, message: 'No subscriptions found' });
 
@@ -1958,8 +1958,8 @@ async function researchCorrelation(req: VercelRequest, res: VercelResponse, user
   if (sessions.length === 0) return success(res, []);
   const sessionIds = sessions.map((s) => s.id);
   const [morningEntries, daytimeEntries, foodLogs] = await Promise.all([
-    db.select().from(schema.studyMorningEntries).where(inArray(schema.studyMorningEntries.sessionId, sessionIds)),
-    db.select().from(schema.studyDaytimeEntries).where(inArray(schema.studyDaytimeEntries.sessionId, sessionIds)),
+    db.select().from(schema.studyMorningEntries).where(inArray(schema.studyMorningEntries.sessionId, sessionIds)).limit(500),
+    db.select().from(schema.studyDaytimeEntries).where(inArray(schema.studyDaytimeEntries.sessionId, sessionIds)).limit(500),
     db.select().from(schema.foodLogs).where(eq(schema.foodLogs.userId, userId)).orderBy(desc(schema.foodLogs.loggedAt)).limit(200),
   ]);
   const morningBySession = new Map(morningEntries.map((m) => [m.sessionId, m]));
