@@ -173,8 +173,12 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
     const { username, password, email } = body as { username?: string; password?: string; email?: string };
     if (!username || typeof username !== 'string' || username.trim().length < 3)
       return badRequest(res, 'Username must be at least 3 characters');
+    if (username.trim().length > 50)
+      return badRequest(res, 'Username must be ≤50 characters');
     if (!password || typeof password !== 'string' || password.length < 6)
       return badRequest(res, 'Password must be at least 6 characters');
+    if (password.length > 128)
+      return badRequest(res, 'Password must be ≤128 characters');
     const [existing] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim().toLowerCase()));
     if (existing) return badRequest(res, 'Username already exists');
     const normalizedEmail = email?.trim().toLowerCase() || null;
@@ -209,7 +213,8 @@ async function authLogin(req: VercelRequest, res: VercelResponse) {
       ? req.body : await parseRequestBody(req);
     const { username, password } = body as { username?: string; password?: string };
     if (!username || !password) return badRequest(res, 'Username and password required');
-    const [user] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
+    if (typeof password !== 'string' || password.length > 128) return badRequest(res, 'Invalid credentials');
+    const [user] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim().slice(0, 50)));
     if (!user || !(await verifyPassword(user.password, password)))
       return unauthorized(res, 'Invalid username or password');
     const token = generateToken({ userId: user.id, username: user.username, role: (user.role as 'user' | 'admin') ?? 'user' });
