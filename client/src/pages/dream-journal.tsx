@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useLocation } from "wouter";
 import { Moon, PenLine, Brain, AlarmClock, Wifi } from "lucide-react";
-import { apiRequest, resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getDreamTier, estimateRemWindows, type PhoneSleepEstimate } from "@/lib/dream-tier";
 
 /* ---------- types ---------- */
