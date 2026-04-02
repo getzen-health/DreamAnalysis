@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { AlertCircle, ChevronRight, Shield, Loader2 } from "lucide-react";
-import { apiRequest, resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { sbGetSetting, sbSaveSetting } from "../../lib/supabase-store";
 
@@ -75,7 +75,7 @@ function getStoredCode(): string | null {
 }
 
 async function checkCodeAvailable(code: string): Promise<boolean> {
-  const resp = await fetch(resolveUrl(`/api/study/check-code?code=${encodeURIComponent(code)}`));
+  const resp = await apiRequest("GET", `/api/study/check-code?code=${encodeURIComponent(code)}`);
   if (!resp.ok) return false;
   const data = await resp.json() as { available: boolean };
   return data.available;

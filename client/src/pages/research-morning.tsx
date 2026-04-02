@@ -21,7 +21,7 @@ import {
   Square,
 } from "lucide-react";
 import { useVoiceInput } from "@/hooks/use-voice-input";
-import { apiRequest, resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics, type DreamFusionInsight } from "@/lib/dream-biometric-fusion";
@@ -206,7 +206,7 @@ export default function ResearchMorning() {
   }>({
     queryKey: ["/api/study/status", USER_ID],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/study/status/${USER_ID}`), { credentials: "include" });
+      const res = await apiRequest("GET", `/api/study/status/${USER_ID}`);
       if (!res.ok) throw new Error("Failed to load study status");
       return res.json();
     },

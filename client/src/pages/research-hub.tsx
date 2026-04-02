@@ -1,5 +1,5 @@
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
@@ -246,7 +246,7 @@ export default function ResearchHub() {
   const { data: status, isLoading } = useQuery<StudyStatus>({
     queryKey: ["/api/study/status", USER_ID],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/study/status/${USER_ID}`), { credentials: "include" });
+      const res = await apiRequest("GET", `/api/study/status/${USER_ID}`);
       if (!res.ok) throw new Error("Failed");
       return res.json();
     },
@@ -255,7 +255,7 @@ export default function ResearchHub() {
   const { data: correlation } = useQuery<CorrelationDay[]>({
     queryKey: ["/api/research/correlation", USER_ID],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/research/correlation/${USER_ID}`), { credentials: "include" });
+      const res = await apiRequest("GET", `/api/research/correlation/${USER_ID}`);
       if (!res.ok) return [];
       return res.json();
     },
