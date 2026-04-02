@@ -2490,6 +2490,178 @@ async function mealHistoryToggleFavorite(req: VercelRequest, res: VercelResponse
   return success(res, updated);
 }
 
+// ── Clear all user data ───────────────────────────────────────────────────────
+
+async function clearUserData(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'DELETE') return methodNotAllowed(res, ['DELETE']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  // Delete in dependency order (children before parents)
+  await db.delete(schema.habitLogs).where(eq(schema.habitLogs.userId, userId));
+  await db.delete(schema.habits).where(eq(schema.habits.userId, userId));
+  // workoutSets references workoutId, so fetch user workout IDs first
+  const userWorkouts = await db.select({ id: schema.workouts.id }).from(schema.workouts).where(eq(schema.workouts.userId, userId));
+  if (userWorkouts.length > 0) {
+    const { inArray } = await import('drizzle-orm');
+    await db.delete(schema.workoutSets).where(inArray(schema.workoutSets.workoutId, userWorkouts.map((w: any) => w.id)));
+  }
+  await db.delete(schema.workouts).where(eq(schema.workouts.userId, userId));
+  await db.delete(schema.exerciseHistory).where(eq(schema.exerciseHistory.userId, userId));
+  await db.delete(schema.bodyMetrics).where(eq(schema.bodyMetrics.userId, userId));
+  await db.delete(schema.cycleTracking).where(eq(schema.cycleTracking.userId, userId));
+  await db.delete(schema.moodLogs).where(eq(schema.moodLogs.userId, userId));
+  await db.delete(schema.mealHistory).where(eq(schema.mealHistory.userId, userId));
+  await db.delete(schema.foodLogs).where(eq(schema.foodLogs.userId, userId));
+  await db.delete(schema.dreamSymbols).where(eq(schema.dreamSymbols.userId, userId));
+  await db.delete(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId));
+  await db.delete(schema.emotionReadings).where(eq(schema.emotionReadings.userId, userId));
+  await db.delete(schema.brainReadings).where(eq(schema.brainReadings.userId, userId));
+  await db.delete(schema.healthSamples).where(eq(schema.healthSamples.userId, userId));
+  await db.delete(schema.healthMetrics).where(eq(schema.healthMetrics.userId, userId));
+  await db.delete(schema.aiChats).where(eq(schema.aiChats.userId, userId));
+  await db.delete(schema.realityTests).where(eq(schema.realityTests.userId, userId));
+  await db.delete(schema.irtSessions).where(eq(schema.irtSessions.userId, userId));
+  await db.delete(schema.userReadings).where(eq(schema.userReadings.userId, userId));
+  await db.delete(schema.userSettings).where(eq(schema.userSettings.userId, userId));
+  return success(res, { message: 'All data cleared successfully' });
+}
+
+// ── Exercise history personal records ─────────────────────────────────────────
+
+async function exerciseHistoryPrs(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  // Fetch PRs: best estimated1rm and bestWeightKg per exercise
+  const rows = await db
+    .select({
+      exerciseId: schema.exerciseHistory.exerciseId,
+      bestWeightKg: schema.exerciseHistory.bestWeightKg,
+      bestReps: schema.exerciseHistory.bestReps,
+      estimated1rm: schema.exerciseHistory.estimated1rm,
+      totalVolume: schema.exerciseHistory.totalVolume,
+      date: schema.exerciseHistory.date,
+      exerciseName: schema.exercises.name,
+      exerciseCategory: schema.exercises.category,
+    })
+    .from(schema.exerciseHistory)
+    .leftJoin(schema.exercises, eq(schema.exerciseHistory.exerciseId, schema.exercises.id))
+    .where(eq(schema.exerciseHistory.userId, userId))
+    .orderBy(desc(schema.exerciseHistory.estimated1rm))
+    .limit(200);
+  return success(res, rows);
+}
+
+// ── Brain: yesterday insights ─────────────────────────────────────────────────
+
+async function brainYesterdayInsights(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const now = new Date();
+  const yesterdayStart = new Date(now);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  yesterdayStart.setHours(0, 0, 0, 0);
+  const yesterdayEnd = new Date(yesterdayStart);
+  yesterdayEnd.setHours(23, 59, 59, 999);
+
+  const rows = await db
+    .select({
+      stress: schema.brainReadings.stress,
+      focus: schema.brainReadings.focus,
+      relaxation: schema.brainReadings.relaxation,
+      dominantEmotion: schema.brainReadings.dominantEmotion,
+      valence: schema.brainReadings.valence,
+      timestamp: schema.brainReadings.timestamp,
+    })
+    .from(schema.brainReadings)
+    .where(
+      and(
+        eq(schema.brainReadings.userId, userId),
+        gte(schema.brainReadings.timestamp, yesterdayStart),
+        lt(schema.brainReadings.timestamp, yesterdayEnd),
+      )
+    )
+    .orderBy(desc(schema.brainReadings.timestamp))
+    .limit(500);
+
+  if (rows.length === 0) return success(res, null);
+
+  const avg = (arr: (number | null)[]) => {
+    const valid = arr.filter((v): v is number => v !== null && v !== undefined);
+    return valid.length > 0 ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+  };
+
+  const emotionCounts = new Map<string, number>();
+  for (const r of rows) {
+    if (r.dominantEmotion) {
+      emotionCounts.set(r.dominantEmotion, (emotionCounts.get(r.dominantEmotion) ?? 0) + 1);
+    }
+  }
+  const dominantEmotion = emotionCounts.size > 0
+    ? [...emotionCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    : null;
+
+  return success(res, {
+    date: yesterdayStart.toISOString().slice(0, 10),
+    readingCount: rows.length,
+    avgStress: avg(rows.map(r => r.stress)),
+    avgFocus: avg(rows.map(r => r.focus)),
+    avgRelaxation: avg(rows.map(r => r.relaxation)),
+    avgValence: avg(rows.map(r => r.valence)),
+    dominantEmotion,
+  });
+}
+
+// ── Brain: patterns ───────────────────────────────────────────────────────────
+
+async function brainPatterns(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 90);
+  const since = new Date(Date.now() - days * 86_400_000);
+
+  const rows = await db
+    .select({
+      stress: schema.brainReadings.stress,
+      focus: schema.brainReadings.focus,
+      relaxation: schema.brainReadings.relaxation,
+      dominantEmotion: schema.brainReadings.dominantEmotion,
+      timestamp: schema.brainReadings.timestamp,
+    })
+    .from(schema.brainReadings)
+    .where(and(eq(schema.brainReadings.userId, userId), gte(schema.brainReadings.timestamp, since)))
+    .orderBy(asc(schema.brainReadings.timestamp))
+    .limit(2000);
+
+  if (rows.length === 0) return success(res, { days, readingCount: 0, emotions: [], peakFocusHour: null, peakStressHour: null });
+
+  // Emotion frequency
+  const emotionCounts = new Map<string, number>();
+  for (const r of rows) {
+    if (r.dominantEmotion) {
+      emotionCounts.set(r.dominantEmotion, (emotionCounts.get(r.dominantEmotion) ?? 0) + 1);
+    }
+  }
+  const emotions = [...emotionCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([emotion, count]) => ({ emotion, count, pct: Math.round((count / rows.length) * 100) }));
+
+  // Peak focus/stress by hour of day
+  const hourFocus = new Array(24).fill(0).map(() => ({ sum: 0, count: 0 }));
+  const hourStress = new Array(24).fill(0).map(() => ({ sum: 0, count: 0 }));
+  for (const r of rows) {
+    const h = new Date(r.timestamp).getHours();
+    if (r.focus !== null && r.focus !== undefined) { hourFocus[h].sum += r.focus; hourFocus[h].count++; }
+    if (r.stress !== null && r.stress !== undefined) { hourStress[h].sum += r.stress; hourStress[h].count++; }
+  }
+  const peakFocusHour = hourFocus.reduce((best, h, i) =>
+    h.count > 0 && (best === null || h.sum / h.count > hourFocus[best].sum / hourFocus[best].count) ? i : best, null as number | null);
+  const peakStressHour = hourStress.reduce((best, h, i) =>
+    h.count > 0 && (best === null || h.sum / h.count > hourStress[best].sum / hourStress[best].count) ? i : best, null as number | null);
+
+  return success(res, { days, readingCount: rows.length, emotions, peakFocusHour, peakStressHour });
+}
+
 // ── Demo data seeder ─────────────────────────────────────────────────────────
 
 async function seedDemo(req: VercelRequest, res: VercelResponse) {
@@ -2632,7 +2804,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (s1 && req.method === 'GET') return await healthSamplesGet(req, res, s1);
     }
 
-    if (s0 === 'settings' && s1) return await settingsHandler(req, res, s1);
+    if (s0 === 'settings' && s1) {
+      if (segs[2] === 'data' && req.method === 'DELETE') return await clearUserData(req, res, s1);
+      return await settingsHandler(req, res, s1);
+    }
     if (s0 === 'export'   && s1) return await exportHandler(req, res, s1);
 
     if (s0 === 'insights' && s1 === 'weekly') return await insightsWeekly(req, res);
@@ -2662,6 +2837,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // Brain at-this-time-yesterday — ±30 min window same time yesterday
     if (s0 === 'brain' && s1 === 'at-this-time-yesterday' && segs[2] && req.method === 'GET') {
       return await brainAtThisTimeYesterday(req, res, segs[2]);
+    }
+
+    // Brain yesterday-insights — daily aggregates for yesterday
+    if (s0 === 'brain' && s1 === 'yesterday-insights' && segs[2] && req.method === 'GET') {
+      return await brainYesterdayInsights(req, res, segs[2]);
+    }
+
+    // Brain patterns — emotion frequency + peak hours over N days
+    if (s0 === 'brain' && s1 === 'patterns' && segs[2] && req.method === 'GET') {
+      return await brainPatterns(req, res, segs[2]);
     }
 
     // Inner Score
@@ -2725,6 +2910,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'ai-coach' && req.method === 'POST') return await aiCoachPost(req, res);
 
     if (s0 === 'irt-session' && req.method === 'POST') return await irtSessionPost(req, res);
+
+    if (s0 === 'exercise-history' && s1 && segs[2] === 'prs' && req.method === 'GET') {
+      return await exerciseHistoryPrs(req, res, s1);
+    }
 
     if (s0 === 'exercises' && req.method === 'GET') {
       const db = getDb();
