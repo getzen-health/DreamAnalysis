@@ -2603,6 +2603,98 @@ async function foodMoodCorrelation(req: VercelRequest, res: VercelResponse, user
   });
 }
 
+// ── Dream weekly synthesis (AI) ───────────────────────────────────────────────
+
+async function dreamWeeklySynthesis(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  // Rate limit: 10 syntheses per user per hour (calls LLM)
+  const rl = await checkRateLimit(db, `dream-weekly-synthesis:${userId}`, 10, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many synthesis requests. Please wait before generating again.');
+
+  const since = new Date(Date.now() - 7 * 86_400_000);
+  const dreams = await db.select({
+    dreamText: schema.dreamAnalysis.dreamText,
+    themes: schema.dreamAnalysis.themes,
+    emotionalArc: schema.dreamAnalysis.emotionalArc,
+    keyInsight: schema.dreamAnalysis.keyInsight,
+    threatSimulationIndex: schema.dreamAnalysis.threatSimulationIndex,
+    symbols: schema.dreamAnalysis.symbols,
+    timestamp: schema.dreamAnalysis.timestamp,
+  }).from(schema.dreamAnalysis)
+    .where(and(eq(schema.dreamAnalysis.userId, userId), gte(schema.dreamAnalysis.timestamp, since)))
+    .orderBy(asc(schema.dreamAnalysis.timestamp))
+    .limit(20);
+
+  if (dreams.length === 0) {
+    return success(res, {
+      synthesis: 'No dreams recorded this week. Start journaling your dreams to receive a personalised weekly synthesis.',
+      topThemes: [],
+      dreamCount: 0,
+      nightmareCount: 0,
+      generatedAt: new Date().toISOString(),
+    });
+  }
+
+  const nightmareCount = dreams.filter(d =>
+    (d.threatSimulationIndex as number | null) !== null && (d.threatSimulationIndex as number) > 0.6
+  ).length;
+
+  // Build compact context for the LLM
+  const dreamLines = dreams.map((d, i) => {
+    const date = new Date(d.timestamp).toISOString().slice(0, 10);
+    const parts = [`Dream ${i + 1} (${date})`];
+    const themes = d.themes as string[] | null;
+    if (Array.isArray(themes) && themes.length > 0) parts.push(`themes: ${themes.join(', ')}`);
+    if (d.emotionalArc) parts.push(`arc: ${(d.emotionalArc as string).slice(0, 80)}`);
+    if (d.keyInsight) parts.push(`insight: "${(d.keyInsight as string).slice(0, 100)}"`);
+    if (d.dreamText) parts.push(`text: "${(d.dreamText as string).slice(0, 150)}"`);
+    return parts.join(' | ');
+  }).join('\n');
+
+  // Aggregate top themes
+  const themeCounts = new Map<string, number>();
+  for (const d of dreams) {
+    const th = d.themes as string[] | null;
+    if (Array.isArray(th)) {
+      for (const t of th) themeCounts.set(t, (themeCounts.get(t) ?? 0) + 1);
+    }
+  }
+  const topThemes = [...themeCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([t]) => t);
+
+  const openai = getOpenAIClient();
+  let synthesis = '';
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a thoughtful dream analyst. Write a 3-4 sentence personalised weekly dream synthesis. Focus on recurring emotional themes, growth patterns, and one key insight. Be warm, specific, and avoid generic statements.',
+        },
+        {
+          role: 'user',
+          content: `Here are my dreams from the past week:\n\n${dreamLines}\n\nWrite a personalised weekly synthesis narrative.`,
+        },
+      ],
+      max_tokens: 300,
+      temperature: 0.7,
+    });
+    synthesis = resp.choices?.[0]?.message?.content?.trim() ?? '';
+  } catch {
+    synthesis = `This week you recorded ${dreams.length} dream${dreams.length !== 1 ? 's' : ''}. ${topThemes.length > 0 ? `Recurring themes include: ${topThemes.slice(0, 3).join(', ')}.` : ''} ${nightmareCount > 0 ? `${nightmareCount} nightmare${nightmareCount !== 1 ? 's' : ''} were flagged — consider exploring IRT practices.` : 'No nightmares this week — a positive sign.'}`;
+  }
+
+  return success(res, {
+    synthesis,
+    topThemes,
+    dreamCount: dreams.length,
+    nightmareCount,
+    generatedAt: new Date().toISOString(),
+  });
+}
+
 // ── Dream patterns ────────────────────────────────────────────────────────────
 
 async function dreamPatternsGet(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -3291,6 +3383,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return await exerciseHistoryPrs(req, res, s1);
     }
 
+    if (s0 === 'dream-weekly-synthesis' && s1 && req.method === 'POST') return await dreamWeeklySynthesis(req, res, s1);
     if (s0 === 'dream-patterns' && s1 && req.method === 'GET') return await dreamPatternsGet(req, res, s1);
     if (s0 === 'dream-symbols' && s1 && req.method === 'GET') return await dreamSymbolsGet(req, res, s1);
     if (s0 === 'dream-quality-trend' && s1 && req.method === 'GET') return await dreamQualityTrend(req, res, s1);
