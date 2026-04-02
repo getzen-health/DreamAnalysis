@@ -76,6 +76,9 @@ const PERIODS = [
   { label: "Year", days: 365 },
 ];
 
+const SESSION_DAYS_PAGE = 7;  // show N day-groups at a time in sessions tab
+const DREAM_PAGE_SIZE   = 15; // dreams per page
+
 type Tab = "sessions" | "emotions" | "dreams" | "health";
 
 /* ── Helpers ─────────────────────────────────────────────────── */
@@ -113,6 +116,8 @@ function avg(arr: number[]) {
 export default function DataHub() {
   const [periodDays, setPeriodDays] = useState(1); // default: today
   const [tab, setTab] = useState<Tab>("sessions");
+  const [sessionDayPage, setSessionDayPage] = useState(1);
+  const [dreamPage, setDreamPage] = useState(1);
   /* — Data fetches — */
   const { data: allSessions = [], isLoading: sessionsLoading } =
     useQuery<SessionSummary[]>({
@@ -231,7 +236,7 @@ export default function DataHub() {
           {PERIODS.map((p) => (
             <button
               key={p.days}
-              onClick={() => setPeriodDays(p.days)}
+              onClick={() => { setPeriodDays(p.days); setSessionDayPage(1); setDreamPage(1); }}
               className={`px-3 py-1 text-xs rounded-full transition-colors ${
                 periodDays === p.days
                   ? "bg-primary text-primary-foreground"
@@ -457,7 +462,7 @@ export default function DataHub() {
           )}
 
           {/* Session cards */}
-          {sortedDays.map((day) => (
+          {sortedDays.slice(0, sessionDayPage * SESSION_DAYS_PAGE).map((day) => (
             <div key={day}>
               <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">{day}</p>
               <div className="space-y-2">
@@ -501,6 +506,14 @@ export default function DataHub() {
               </div>
             </div>
           ))}
+          {sortedDays.length > sessionDayPage * SESSION_DAYS_PAGE && (
+            <button
+              onClick={() => setSessionDayPage(p => p + 1)}
+              className="w-full py-2.5 text-xs text-muted-foreground hover:text-foreground border border-border/40 rounded-xl hover:bg-muted/30 transition-colors"
+            >
+              Show {Math.min(SESSION_DAYS_PAGE, sortedDays.length - sessionDayPage * SESSION_DAYS_PAGE)} more days ({sortedDays.length - sessionDayPage * SESSION_DAYS_PAGE} remaining)
+            </button>
+          )}
         </div>
       )}
 
@@ -622,7 +635,7 @@ export default function DataHub() {
             </Card>
           )}
 
-          {periodDreams.map((dream) => (
+          {periodDreams.slice(0, dreamPage * DREAM_PAGE_SIZE).map((dream) => (
             <Card key={dream.id} className="glass-card p-5 hover-glow">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2">
@@ -649,6 +662,14 @@ export default function DataHub() {
               )}
             </Card>
           ))}
+          {periodDreams.length > dreamPage * DREAM_PAGE_SIZE && (
+            <button
+              onClick={() => setDreamPage(p => p + 1)}
+              className="w-full py-2.5 text-xs text-muted-foreground hover:text-foreground border border-border/40 rounded-xl hover:bg-muted/30 transition-colors"
+            >
+              Show {Math.min(DREAM_PAGE_SIZE, periodDreams.length - dreamPage * DREAM_PAGE_SIZE)} more dreams ({periodDreams.length - dreamPage * DREAM_PAGE_SIZE} remaining)
+            </button>
+          )}
         </div>
       )}
 
