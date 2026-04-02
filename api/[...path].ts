@@ -1858,6 +1858,25 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── IRT (Image Rehearsal Therapy) sessions ────────────────────────────────────
+
+async function irtSessionPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId, originalDreamText, rewrittenEnding, rehearsalNote } = req.body;
+  if (!userId || typeof userId !== 'string') return badRequest(res, 'userId required');
+  if (!originalDreamText || typeof originalDreamText !== 'string') return badRequest(res, 'originalDreamText required');
+  if (!rewrittenEnding || typeof rewrittenEnding !== 'string') return badRequest(res, 'rewrittenEnding required');
+  if (originalDreamText.length > 10000 || rewrittenEnding.length > 10000) return badRequest(res, 'Text too long (max 10000 chars)');
+  const db = getDb();
+  const [row] = await db.insert(schema.irtSessions).values({
+    userId,
+    originalDreamText,
+    rewrittenEnding,
+    rehearsalNote: typeof rehearsalNote === 'string' ? rehearsalNote.substring(0, 1000) : null,
+  }).returning();
+  return success(res, row, 201);
+}
+
 // ── Research correlation ──────────────────────────────────────────────────────
 
 async function researchCorrelation(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -2704,6 +2723,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'sleep-alarm' && s1 && req.method === 'GET') return await sleepAlarm(req, res, s1);
 
     if (s0 === 'ai-coach' && req.method === 'POST') return await aiCoachPost(req, res);
+
+    if (s0 === 'irt-session' && req.method === 'POST') return await irtSessionPost(req, res);
 
     if (s0 === 'research' && s1 === 'correlation' && segs[2] && req.method === 'GET') {
       return await researchCorrelation(req, res, segs[2]);
