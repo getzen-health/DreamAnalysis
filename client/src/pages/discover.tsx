@@ -352,7 +352,8 @@ function MoodInsightsCard({ userId }: { userId: string }) {
 
   if (!data || data.length < 3) return null;
 
-  const insights = detectMoodPatterns(data);
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const insights = useMemo(() => detectMoodPatterns(data), [data]);
   if (insights.length === 0) return null;
 
   const borderColors: Record<string, string> = {

@@ -565,6 +565,7 @@ async function emotionsRecord(req: VercelRequest, res: VercelResponse) {
   const { userId, stress, happiness, focus, energy, dominantEmotion, valence, arousal, eegSnapshot } = req.body;
   if (!userId || stress === undefined || happiness === undefined || focus === undefined || energy === undefined || !dominantEmotion)
     return badRequest(res, 'Missing required fields');
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const [reading] = await db.insert(schema.emotionReadings).values({
     userId, stress, happiness, focus, energy, dominantEmotion,
@@ -615,6 +616,7 @@ async function emotionsHistory(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const userId = req.query.userId as string;
   if (!userId) return error(res, 'userId required', 400);
+  if (!requireOwner(req, res, userId)) return;
   const limit = parseInt(req.query.limit as string) || 50;
   const db = getDb();
   const rows = await db.select().from(schema.emotionReadings)
@@ -624,6 +626,9 @@ async function emotionsHistory(req: VercelRequest, res: VercelResponse) {
 
 async function healthMetricsPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const userId = req.body?.userId as string | undefined;
+  if (!userId) return badRequest(res, 'userId required');
+  if (!requireOwner(req, res, userId)) return;
   try {
     const data = schema.insertHealthMetricsSchema.parse(req.body);
     const db = getDb();
@@ -662,6 +667,7 @@ async function healthSamplesPost(req: VercelRequest, res: VercelResponse) {
     if (!user_id || !Array.isArray(samples) || samples.length === 0) {
       return badRequest(res, 'user_id and samples[] required');
     }
+    if (!requireOwner(req, res, user_id)) return;
     const rows = samples
       .filter((s) => typeof s.value === 'number' && !isNaN(s.value))
       .map((s) => ({
