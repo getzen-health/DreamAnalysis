@@ -2119,6 +2119,7 @@ async function bodyMetricsList(req: VercelRequest, res: VercelResponse, userId: 
 
 async function healthSamplesByMetric(req: VercelRequest, res: VercelResponse, userId: string, metric: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const days = Math.min(Math.max(parseInt(req.query.days as string) || 7, 1), 365);
   const since = new Date(Date.now() - days * 86_400_000);
   const db = getDb();
@@ -3590,6 +3591,9 @@ async function seedDemo(req: VercelRequest, res: VercelResponse) {
   const payload = requireAuth(req, res);
   if (!payload) return;
   const userId = payload.userId;
+  // Rate limit: 5 demo seeds per user per hour (inserts ~60 rows per call)
+  const rl = await checkRateLimit(db, `seed-demo:${userId}`, 5, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
 
   const now = Date.now();
   const day = 86_400_000;
