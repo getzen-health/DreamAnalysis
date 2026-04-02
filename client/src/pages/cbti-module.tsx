@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { sbGetGeneric, sbSaveGeneric } from "@/lib/supabase-store";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -158,18 +159,27 @@ function CheckinRow({ label, value, onChange }: CheckinRowProps) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-export default function CbtiModule() {
-  // State: enrollment
-  const [enrolled, setEnrolled] = useState(false);
-  const [enrollment, setEnrollment] = useState<EnrollmentData | null>(null);
+const CBTI_KEY = "ndw_cbti_enrollment";
+const CBTI_CHECKIN_KEY = "ndw_cbti_checkin";
 
-  // State: daily check-in
-  const [checkin, setCheckin] = useState<DailyCheckin>({
-    bedtimeAdherence: null,
-    getUpIfAwake: null,
-    bedForSleepOnly: null,
+export default function CbtiModule() {
+  // State: enrollment — persisted to localStorage
+  const [enrolled, setEnrolled] = useState(() => !!sbGetGeneric<EnrollmentData>(CBTI_KEY));
+  const [enrollment, setEnrollment] = useState<EnrollmentData | null>(
+    () => sbGetGeneric<EnrollmentData>(CBTI_KEY)
+  );
+
+  // State: daily check-in — today's entry only (reset each calendar day)
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const [checkin, setCheckin] = useState<DailyCheckin>(() => {
+    const saved = sbGetGeneric<{ date: string; data: DailyCheckin }>(CBTI_CHECKIN_KEY);
+    if (saved?.date === todayKey) return saved.data;
+    return { bedtimeAdherence: null, getUpIfAwake: null, bedForSleepOnly: null };
   });
-  const [checkinSaved, setCheckinSaved] = useState(false);
+  const [checkinSaved, setCheckinSaved] = useState(() => {
+    const saved = sbGetGeneric<{ date: string; data: DailyCheckin }>(CBTI_CHECKIN_KEY);
+    return saved?.date === todayKey && Object.values(saved.data).every(v => v !== null);
+  });
 
   // Derive compliance score from current responses
   const complianceScore = useMemo(() => {
@@ -189,10 +199,11 @@ export default function CbtiModule() {
     // last 7 days of healthSamples data. Here we use the mock.
     setEnrollment(MOCK_ENROLLMENT);
     setEnrolled(true);
+    sbSaveGeneric(CBTI_KEY, MOCK_ENROLLMENT);
   }
 
   function saveCheckin() {
-    // In production: POST checkin responses + compliance score to API
+    sbSaveGeneric(CBTI_CHECKIN_KEY, { date: todayKey, data: checkin });
     setCheckinSaved(true);
   }
 
