@@ -1175,7 +1175,7 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
 
 async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
-  // No auth gate — data is scoped by userId (same pattern as brain/history)
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const url = new URL(req.url ?? '', `http://${req.headers.host}`);
   const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') ?? '50', 10), 1), 200);
@@ -1326,6 +1326,10 @@ async function emotionReadingsBatch(req: VercelRequest, res: VercelResponse) {
   const parsed = z.object({ readings: z.array(emotionReadingSchema).min(1).max(50) }).safeParse(body);
   if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid readings');
   const db = getDb();
+  // Rate limit by IP: 200 batch calls per hour
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(db, `emotion-batch:${ip}`, 200, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const rows = parsed.data.readings.map((r) => ({
     userId: r.userId, sessionId: r.sessionId ?? null,
     stress: r.stress, happiness: r.happiness, focus: r.focus, energy: r.energy,
@@ -1356,6 +1360,10 @@ async function userReadingsPost(req: VercelRequest, res: VercelResponse) {
   const parsed = userReadingSchema.safeParse(body);
   if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid reading data');
   const db = getDb();
+  // Rate limit by IP: 200 readings per hour (anonymous participant support — no auth required)
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(db, `user-readings:${ip}`, 200, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.userReadings).values({
     userId: parsed.data.userId, source: parsed.data.source, emotion: parsed.data.emotion,
     valence: parsed.data.valence ?? null, arousal: parsed.data.arousal ?? null,
