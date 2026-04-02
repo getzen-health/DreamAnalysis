@@ -3,6 +3,8 @@ import { initSentry } from "./lib/sentry";
 import App from "./App";
 import "./index.css";
 import { flushPendingCorrections } from "@/lib/feedback-sync";
+import { initSQLiteStore } from "@/lib/sqlite-store";
+import { maybeBackup } from "@/lib/icloud-sync";
 
 // Sentry crash analytics — only activates when VITE_SENTRY_DSN is set
 initSentry();
@@ -49,3 +51,8 @@ createRoot(document.getElementById("root")!).render(<App />);
 
 // Flush any queued corrections from previous offline sessions
 flushPendingCorrections().catch(() => {});
+
+// On-device encrypted SQLite store (native only — no-op on web)
+initSQLiteStore().then(available => {
+  if (available) maybeBackup().catch(() => {}); // trigger iCloud backup if iOS + 12h since last
+}).catch(() => {});
