@@ -8,6 +8,7 @@ import { useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getParticipantId } from "@/lib/participant";
 import { resolveUrl } from "@/lib/queryClient";
 import { getMLApiUrl } from "@/lib/ml-api";
@@ -515,6 +516,19 @@ export default function WeeklyBrainSummary() {
           Export PNG
         </Button>
       </div>
+
+      {/* Loading skeleton */}
+      {isLoading && (
+        <div className="space-y-4">
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <div className="grid grid-cols-3 gap-3">
+            <Skeleton className="h-28 rounded-xl" />
+            <Skeleton className="h-28 rounded-xl" />
+            <Skeleton className="h-28 rounded-xl" />
+          </div>
+          <Skeleton className="h-20 w-full rounded-xl" />
+        </div>
+      )}
 
       {/* No data state */}
       {!isLoading && !hasAnyData && (
