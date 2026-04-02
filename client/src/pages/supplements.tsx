@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -267,7 +268,11 @@ export default function SupplementsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {logQ.isLoading && <p className="text-xs text-zinc-500">Loading…</p>}
+              {logQ.isLoading && (
+                <div className="space-y-2">
+                  {[1,2,3].map(i => <Skeleton key={i} className="h-9 w-full rounded-lg" />)}
+                </div>
+              )}
               {logQ.data?.entries.length === 0 && (
                 <p className="text-xs text-zinc-500">No supplements logged yet.</p>
               )}
@@ -285,7 +290,11 @@ export default function SupplementsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {activeQ.isLoading && <p className="text-xs text-zinc-500">Loading…</p>}
+              {activeQ.isLoading && (
+                <div className="space-y-2">
+                  {[1,2].map(i => <Skeleton key={i} className="h-9 w-full rounded-lg" />)}
+                </div>
+              )}
               {activeQ.data?.supplements.length === 0 && (
                 <p className="text-xs text-zinc-500">Nothing active in the last 24 hours.</p>
               )}
@@ -298,7 +307,11 @@ export default function SupplementsPage() {
 
         {/* ── Insights Tab ── */}
         <TabsContent value="insights" className="mt-4 space-y-3">
-          {reportQ.isLoading && <p className="text-xs text-zinc-500">Loading insights…</p>}
+          {reportQ.isLoading && (
+            <div className="space-y-2">
+              {[1,2].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}
+            </div>
+          )}
           {reportQ.data?.supplements.length === 0 && (
             <Card className="bg-zinc-900/60 border-zinc-800">
               <CardContent className="p-4 text-center text-sm text-zinc-500">
