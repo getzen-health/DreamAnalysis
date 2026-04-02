@@ -1220,6 +1220,7 @@ async function foodLogs(req: VercelRequest, res: VercelResponse, userId: string)
 
 async function brainHistory(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const url = new URL(req.url ?? '', `http://${req.headers.host}`);
   const days = Math.min(Math.max(parseInt(url.searchParams.get('days') ?? '7', 10), 1), 365);
@@ -1265,6 +1266,7 @@ async function brainHistory(req: VercelRequest, res: VercelResponse, userId: str
 
 async function brainTodayTotals(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const midnight = new Date();
   midnight.setHours(0, 0, 0, 0);
@@ -1303,6 +1305,7 @@ async function brainTodayTotals(req: VercelRequest, res: VercelResponse, userId:
 
 async function brainAtThisTimeYesterday(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const now = Date.now();
   const oneDayMs = 24 * 60 * 60 * 1000;
@@ -1521,6 +1524,7 @@ async function studyEnroll(req: VercelRequest, res: VercelResponse) {
 
 async function studyStatus(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const participant = await getActiveParticipant(userId);
   if (!participant) return success(res, { enrolled: false });
   const db = getDb();
@@ -2454,6 +2458,7 @@ async function realityTestPost(req: VercelRequest, res: VercelResponse) {
 
 async function realityTestGet(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -2865,6 +2870,7 @@ async function userGet(req: VercelRequest, res: VercelResponse) {
 
 async function glucoseCurrent(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   // No CGM integration yet — return null data so the UI gracefully shows "no data"
   const db = getDb();
   // Check if user has a CGM device connected
@@ -3029,6 +3035,7 @@ async function dreamWeeklySynthesis(req: VercelRequest, res: VercelResponse, use
 
 async function dreamPatternsGet(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 365);
   const db = getDb();
   const since = new Date(Date.now() - days * 86_400_000);
@@ -3354,6 +3361,7 @@ async function exerciseHistoryPrs(req: VercelRequest, res: VercelResponse, userI
 
 async function brainYesterdayInsights(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const now = new Date();
   const yesterdayStart = new Date(now);
@@ -3414,6 +3422,7 @@ async function brainYesterdayInsights(req: VercelRequest, res: VercelResponse, u
 
 async function brainPatterns(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 90);
   const since = new Date(Date.now() - days * 86_400_000);
@@ -3920,6 +3929,7 @@ async function innerScorePost(req: VercelRequest, res: VercelResponse, userId: s
 }
 
 async function innerScoreHistory(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   const url = new URL(req.url!, `http://${req.headers.host}`);
   const days = Math.min(Math.max(parseInt(url.searchParams.get('days') ?? '30', 10), 1), 365);
   const since = new Date(Date.now() - days * 86400_000);
