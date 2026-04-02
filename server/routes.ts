@@ -694,7 +694,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const raw1 = r1.content[0].type === "text" ? r1.content[0].text : "{}";
       try { pass1 = JSON.parse(raw1); } catch { /* keep defaults */ }
-      span1?.end({ output: raw1, usage: { inputTokens: r1.usage.input_tokens, outputTokens: r1.usage.output_tokens } });
+      span1?.end({ output: raw1, usage: { input: r1.usage.input_tokens, output: r1.usage.output_tokens } });
     } else if (openai) {
       const r1 = await openai.chat.completions.create({
         model: "gpt-5",
@@ -750,7 +750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const raw2 = r2.content[0].type === "text" ? r2.content[0].text : "{}";
       try { pass2 = JSON.parse(raw2); } catch { /* keep defaults */ }
-      span2?.end({ output: raw2, usage: { inputTokens: r2.usage.input_tokens, outputTokens: r2.usage.output_tokens } });
+      span2?.end({ output: raw2, usage: { input: r2.usage.input_tokens, output: r2.usage.output_tokens } });
     } else if (openai) {
       const r2 = await openai.chat.completions.create({
         model: "gpt-5",
@@ -795,7 +795,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       const raw3 = r3.content[0].type === "text" ? r3.content[0].text : "{}";
       try { pass3 = JSON.parse(raw3); } catch { /* keep defaults */ }
-      span3?.end({ output: raw3, usage: { inputTokens: r3.usage.input_tokens, outputTokens: r3.usage.output_tokens } });
+      span3?.end({ output: raw3, usage: { input: r3.usage.input_tokens, output: r3.usage.output_tokens } });
     } else if (openai) {
       const r3 = await openai.chat.completions.create({
         model: "gpt-5",
