@@ -1858,6 +1858,36 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Device connections ───────────────────────────────────────────────────────
+
+async function deviceConnectionsList(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  const rows = await db.select({
+    provider: schema.deviceConnections.provider,
+    status: schema.deviceConnections.syncStatus,
+    lastSyncAt: schema.deviceConnections.lastSyncAt,
+    connectedAt: schema.deviceConnections.connectedAt,
+  }).from(schema.deviceConnections)
+    .where(eq(schema.deviceConnections.userId, userId));
+  return success(res, rows);
+}
+
+async function devicesList(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  const rows = await db.select({
+    provider: schema.deviceConnections.provider,
+    status: schema.deviceConnections.syncStatus,
+    lastSyncAt: schema.deviceConnections.lastSyncAt,
+    connectedAt: schema.deviceConnections.connectedAt,
+  }).from(schema.deviceConnections)
+    .where(eq(schema.deviceConnections.userId, userId));
+  return success(res, { devices: rows.map((r) => ({ provider: r.provider, status: r.status, lastSyncAt: r.lastSyncAt, connectedAt: r.connectedAt })) });
+}
+
 // ── Workouts ─────────────────────────────────────────────────────────────────
 
 async function workoutsGet(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -2567,6 +2597,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'sleep-alarm' && s1 && req.method === 'GET') return await sleepAlarm(req, res, s1);
 
     if (s0 === 'ai-coach' && req.method === 'POST') return await aiCoachPost(req, res);
+
+    if (s0 === 'device-connections' && s1 && req.method === 'GET') return await deviceConnectionsList(req, res, s1);
+    if (s0 === 'devices' && s1 && req.method === 'GET') return await devicesList(req, res, s1);
 
     if (s0 === 'workouts') {
       if (!s1 && req.method === 'POST') return await workoutsPost(req, res);
