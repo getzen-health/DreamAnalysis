@@ -8,7 +8,7 @@
  * without network calls.
  */
 
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -73,8 +73,7 @@ export async function fetchLatestDreamContext(
 ): Promise<DreamBriefingContext | null> {
   if (!userId || userId === "anonymous") return null;
   try {
-    const res = await fetch(resolveUrl(`/api/dream-analysis/${userId}?limit=1`));
-    if (!res.ok) return null;
+    const res = await apiRequest("GET", `/api/dream-analysis/${userId}?limit=1`);
     const rows: RawDreamAnalysis[] = await res.json();
     const row = rows?.[0];
     if (!isDreamRecent(row?.timestamp)) return null;

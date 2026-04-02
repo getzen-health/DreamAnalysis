@@ -10,7 +10,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { TrendingUp } from "lucide-react";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import {
   aggregateArcTrend,
   computeArcSummary,
@@ -49,9 +49,7 @@ export function EmotionalArcTrendCard({ userId }: Props) {
   const { data: rawData, isLoading } = useQuery<DreamForArc[]>({
     queryKey: ["dream-analysis", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/dream-analysis/${userId}`));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      const res = await apiRequest("GET", `/api/dream-analysis/${userId}`); return res.json();
     },
     staleTime: 2 * 60 * 1000,
   });

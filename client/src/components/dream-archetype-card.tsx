@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Layers } from "lucide-react";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import {
   aggregateArchetypes,
   type DreamForArchetype,
@@ -41,9 +41,7 @@ export function DreamArchetypeCard({ userId }: Props) {
   const { data: rawData, isLoading } = useQuery<DreamForArchetype[]>({
     queryKey: ["dream-analysis", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/dream-analysis/${userId}`));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+      const res = await apiRequest("GET", `/api/dream-analysis/${userId}`); return res.json();
     },
     staleTime: 2 * 60 * 1000,
   });
