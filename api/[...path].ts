@@ -1901,7 +1901,7 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   try {
     const db = getDb();
     const sourceFilter = req.query.source as string | undefined;
-    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 1000, 1), 5000);
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 200, 1), 1000);
 
     const conditions = [eq(schema.userReadings.userId, userId)];
     if (sourceFilter && ['voice', 'food', 'health', 'eeg'].includes(sourceFilter)) {
@@ -2725,7 +2725,7 @@ async function morningBriefing(req: VercelRequest, res: VercelResponse) {
   if (!authPayload) return;
   const db = getDb();
   // Rate limit: 10 briefings per user per hour
-  const rl = await checkRateLimit(db, `morning-briefing:${authPayload.userId}`, 10, 60);
+  const rl = await checkRateLimit(db, `morning-briefing:${authPayload.userId}`, 5, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
 
   const { sleepData, morningHrv, emotionSummary, patternSummaries, yesterdaySummary, dreamContext } = req.body || {};
@@ -2930,7 +2930,7 @@ async function dreamWeeklySynthesis(req: VercelRequest, res: VercelResponse, use
   if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   // Rate limit: 10 syntheses per user per hour (calls LLM)
-  const rl = await checkRateLimit(db, `dream-weekly-synthesis:${userId}`, 10, 60);
+  const rl = await checkRateLimit(db, `dream-weekly-synthesis:${userId}`, 3, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many synthesis requests. Please wait before generating again.');
 
   const since = new Date(Date.now() - 7 * 86_400_000);
