@@ -305,6 +305,8 @@ async function authResetPassword(req: VercelRequest, res: VercelResponse) {
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : '';
     if (!token || !newPassword)
       return badRequest(res, 'Token and new password required');
+    if (newPassword.length < 6) return badRequest(res, 'Password must be at least 6 characters');
+    if (newPassword.length > 128) return badRequest(res, 'Password must be ≤128 characters');
 
     const db = getDb();
     const now = new Date();
