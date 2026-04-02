@@ -2505,6 +2505,91 @@ async function mealHistoryToggleFavorite(req: VercelRequest, res: VercelResponse
   return success(res, updated);
 }
 
+// ── GET /api/user — return authenticated user profile ────────────────────────
+
+async function userGet(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const payload = requireAuth(req, res);
+  if (!payload) return;
+  const db = getDb();
+  const [user] = await db.select().from(schema.users).where(eq(schema.users.id, payload.userId));
+  if (!user) return error(res, 'User not found', 404);
+  const { password: _, ...safe } = user;
+  return success(res, safe);
+}
+
+// ── GET /api/glucose/current/:userId — CGM glucose stub ──────────────────────
+
+async function glucoseCurrent(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  // No CGM integration yet — return null data so the UI gracefully shows "no data"
+  const db = getDb();
+  // Check if user has a CGM device connected
+  const [cgmRow] = await db.select({ id: schema.deviceConnections.id })
+    .from(schema.deviceConnections)
+    .where(and(eq(schema.deviceConnections.userId, userId), eq(schema.deviceConnections.provider, 'cgm')))
+    .limit(1);
+  if (!cgmRow) return success(res, { current: null, trend: null });
+  // Future: fetch live CGM data from connected provider
+  return success(res, { current: null, trend: null });
+}
+
+// ── GET /api/food/mood-correlation/:userId — correlate food with mood ─────────
+
+async function foodMoodCorrelation(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 7, 1), 90);
+  const db = getDb();
+  const since = new Date(Date.now() - days * 86_400_000);
+
+  const [foodData, moodData, emotionData] = await Promise.all([
+    db.select({
+      id: schema.foodLogs.id,
+      name: schema.foodLogs.name,
+      calories: schema.foodLogs.calories,
+      protein: schema.foodLogs.protein,
+      loggedAt: schema.foodLogs.loggedAt,
+    }).from(schema.foodLogs)
+      .where(and(eq(schema.foodLogs.userId, userId), gte(schema.foodLogs.loggedAt, since)))
+      .orderBy(desc(schema.foodLogs.loggedAt))
+      .limit(500),
+    db.select({
+      moodScore: schema.moodLogs.moodScore,
+      loggedAt: schema.moodLogs.loggedAt,
+    }).from(schema.moodLogs)
+      .where(and(eq(schema.moodLogs.userId, userId), gte(schema.moodLogs.loggedAt, since)))
+      .limit(500),
+    db.select({
+      dominantEmotion: schema.emotionReadings.dominantEmotion,
+      timestamp: schema.emotionReadings.timestamp,
+    }).from(schema.emotionReadings)
+      .where(and(eq(schema.emotionReadings.userId, userId), gte(schema.emotionReadings.timestamp, since)))
+      .limit(500),
+  ]);
+
+  const WINDOW_MS = 2 * 60 * 60 * 1000; // ±2 hours
+  let matchedWithMood = 0;
+  let matchedWithEmotion = 0;
+
+  for (const food of foodData) {
+    const foodTs = new Date(food.loggedAt!).getTime();
+    if (moodData.some(m => Math.abs(new Date(m.loggedAt!).getTime() - foodTs) <= WINDOW_MS)) {
+      matchedWithMood++;
+    }
+    if (emotionData.some(e => Math.abs(new Date(e.timestamp).getTime() - foodTs) <= WINDOW_MS)) {
+      matchedWithEmotion++;
+    }
+  }
+
+  return success(res, {
+    entries: foodData,
+    totalFoodLogs: foodData.length,
+    matchedWithMood,
+    matchedWithEmotion,
+  });
+}
+
 // ── Dream patterns ────────────────────────────────────────────────────────────
 
 async function dreamPatternsGet(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -3094,6 +3179,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (s1 === 'analyze') return await foodAnalyze(req, res);
       if (s1 === 'log' && req.method === 'POST') return await foodLog(req, res);
       if (s1 === 'logs' && segs[2]) return await foodLogs(req, res, segs[2]);
+      if (s1 === 'mood-correlation' && segs[2] && req.method === 'GET') return await foodMoodCorrelation(req, res, segs[2]);
+    }
+
+    if (s0 === 'glucose' && s1 === 'current' && segs[2] && req.method === 'GET') {
+      return await glucoseCurrent(req, res, segs[2]);
     }
 
     // Brain history — emotion/stress/focus readings over time
@@ -3168,6 +3258,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (s0 === 'user') {
+      if (!s1 && req.method === 'GET') return await userGet(req, res);
       if (s1 === 'intent' && req.method === 'GET')   return await userIntentGet(req, res);
       if (s1 === 'intent' && req.method === 'PATCH')  return await userIntentPatch(req, res);
     }
