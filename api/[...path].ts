@@ -1858,6 +1858,35 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Meal history ─────────────────────────────────────────────────────────────
+
+async function mealHistoryList(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
+  const rows = await db.select().from(schema.mealHistory)
+    .where(eq(schema.mealHistory.userId, userId))
+    .orderBy(desc(schema.mealHistory.createdAt))
+    .limit(limit);
+  return success(res, rows);
+}
+
+async function mealHistoryToggleFavorite(req: VercelRequest, res: VercelResponse, id: string) {
+  if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
+  const { isFavorite } = req.body;
+  if (typeof isFavorite !== 'boolean') return badRequest(res, 'isFavorite must be a boolean');
+  const db = getDb();
+  const [existing] = await db.select({ id: schema.mealHistory.id, userId: schema.mealHistory.userId })
+    .from(schema.mealHistory).where(eq(schema.mealHistory.id, id)).limit(1);
+  if (!existing) return error(res, 'Meal not found', 404);
+  if (!requireOwner(req, res, existing.userId ?? '')) return;
+  const [updated] = await db.update(schema.mealHistory)
+    .set({ isFavorite })
+    .where(eq(schema.mealHistory.id, id))
+    .returning();
+  return success(res, updated);
+}
+
 // ── Demo data seeder ─────────────────────────────────────────────────────────
 
 async function seedDemo(req: VercelRequest, res: VercelResponse) {
@@ -2086,6 +2115,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'readings') {
       if (!s1 && req.method === 'POST') return await readingsCreate(req, res);
       if (s1 && req.method === 'GET')   return await readingsList(req, res, s1);
+    }
+
+    if (s0 === 'meal-history') {
+      if (s1 && segs[2] === 'favorite' && req.method === 'PATCH') return await mealHistoryToggleFavorite(req, res, s1);
+      if (s1 && req.method === 'GET') return await mealHistoryList(req, res, s1);
     }
 
     if (s0 === 'seed-demo') return await seedDemo(req, res);
