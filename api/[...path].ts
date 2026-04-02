@@ -483,8 +483,11 @@ async function dreamAnalysisMultiPassPost(req: VercelRequest, res: VercelRespons
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many dream analysis requests. Please wait before trying again.');
 
   const openai = getOpenAIClient();
-  const recentCtx = Array.isArray(recentThemes) && recentThemes.length > 0
-    ? `\nRecent dream themes for continuity: ${recentThemes.join(', ')}`
+  const safeThemes = Array.isArray(recentThemes)
+    ? recentThemes.slice(0, 10).map((t: unknown) => typeof t === 'string' ? t.trim().slice(0, 100) : '').filter(Boolean)
+    : [];
+  const recentCtx = safeThemes.length > 0
+    ? `\nRecent dream themes for continuity: ${safeThemes.join(', ')}`
     : '';
 
   try {
@@ -1564,10 +1567,11 @@ async function studyMorning(req: VercelRequest, res: VercelResponse) {
   const session = await getOrCreateTodaySession(participant);
   if (session.morningCompleted) return res.status(409).json({ message: 'Morning entry already submitted today' });
   const db = getDb();
+  const safeDreamText = typeof dreamText === 'string' ? dreamText.trim().slice(0, 5000) : null;
   await db.insert(schema.studyMorningEntries).values({
     sessionId: session.id,
     studyCode: participant.studyCode,
-    dreamText: noRecall ? null : (dreamText ?? null),
+    dreamText: noRecall ? null : (safeDreamText ?? null),
     noRecall: noRecall ?? false,
     dreamValence, dreamArousal, nightmareFlag,
     sleepQuality, sleepHours, minutesFromWaking, currentMoodRating,
@@ -2367,6 +2371,8 @@ async function aiCoachPost(req: VercelRequest, res: VercelResponse) {
   if (!message || typeof message !== 'string') return badRequest(res, 'message required');
   if (message.length > 2000) return badRequest(res, 'message must be ≤2000 characters');
   if (userId && (typeof userId !== 'string' || userId.length > 128)) return badRequest(res, 'Invalid userId');
+  const ALLOWED_TONES = ['supportive', 'motivational', 'clinical', 'gentle', 'direct'];
+  const safeTone = typeof tone === 'string' && ALLOWED_TONES.includes(tone) ? tone : 'supportive';
   const db = getDb();
   const rlKey = userId ? `ai-coach:${userId}` : `ai-coach:${getClientIp(req)}`;
   const rl = await checkRateLimit(db, rlKey, 30, 60);
@@ -2377,7 +2383,7 @@ async function aiCoachPost(req: VercelRequest, res: VercelResponse) {
     context ? `User context: ${String(context).substring(0, 500)}` : '',
     memories && Array.isArray(memories) && memories.length > 0
       ? `User memories: ${memories.slice(0, 5).join('; ')}` : '',
-    `Coaching tone: ${tone ?? 'supportive'}. Be concise and actionable.`,
+    `Coaching tone: ${safeTone}. Be concise and actionable.`,
   ].filter(Boolean).join(' ');
 
   const conversationMsgs: { role: 'user' | 'assistant'; content: string }[] = [];
@@ -2753,6 +2759,8 @@ async function morningBriefing(req: VercelRequest, res: VercelResponse) {
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
 
   const { sleepData, morningHrv, emotionSummary, patternSummaries, yesterdaySummary, dreamContext } = req.body || {};
+  const safeYesterdaySummary = typeof yesterdaySummary === 'string' ? yesterdaySummary.trim().slice(0, 500) : null;
+  const safeDreamInsight = typeof dreamContext?.keyInsight === 'string' ? dreamContext.keyInsight.trim().slice(0, 300) : null;
 
   const openai = getOpenAIClient();
   try {
@@ -2760,8 +2768,8 @@ async function morningBriefing(req: VercelRequest, res: VercelResponse) {
       sleepData ? `Sleep: ${sleepData.totalHours ?? '?'}h total, efficiency ${sleepData.efficiency ?? '?'}%` : '',
       morningHrv ? `Morning HRV: ${morningHrv}ms` : '',
       emotionSummary ? `Yesterday emotions: ${emotionSummary.dominantLabel} dominant (stress ${(emotionSummary.avgStress * 100).toFixed(0)}%, focus ${(emotionSummary.avgFocus * 100).toFixed(0)}%)` : '',
-      yesterdaySummary ? `Yesterday: ${yesterdaySummary}` : '',
-      dreamContext?.keyInsight ? `Dream insight: ${dreamContext.keyInsight}` : '',
+      safeYesterdaySummary ? `Yesterday: ${safeYesterdaySummary}` : '',
+      safeDreamInsight ? `Dream insight: ${safeDreamInsight}` : '',
     ].filter(Boolean).join('. ');
 
     const resp = await openai.chat.completions.create({
