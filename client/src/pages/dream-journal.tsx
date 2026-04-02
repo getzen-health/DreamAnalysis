@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useLocation } from "wouter";
 import { Moon, PenLine, Brain, AlarmClock, Wifi } from "lucide-react";
+import { apiRequest, resolveUrl } from "@/lib/queryClient";
 import { getDreamTier, estimateRemWindows, type PhoneSleepEstimate } from "@/lib/dream-tier";
 
 /* ---------- types ---------- */
@@ -150,15 +151,7 @@ export default function DreamJournal() {
       setEpisodes((prev) => [...prev, { startTime, duration, intensity: lastIntensityRef.current }]);
 
       if (frames.length > 0 && user?.id) {
-        fetch("/api/dream-frames", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            frames,
-            sessionId: sessionIdRef.current,
-            userId: user.id,
-          }),
-        })
+        apiRequest("POST", "/api/dream-frames", { frames, sessionId: sessionIdRef.current })
           .then((r) => r.json())
           .then((data: { saved?: number }) => {
             if (data.saved) setTotalFramesSaved((n) => n + data.saved!);
@@ -177,15 +170,7 @@ export default function DreamJournal() {
     if (pendingFrames.length > 0) {
       frameBufferRef.current = [];
       try {
-        const r = await fetch("/api/dream-frames", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            frames: pendingFrames,
-            sessionId: sessionIdRef.current,
-            userId: user.id,
-          }),
-        });
+        const r = await apiRequest("POST", "/api/dream-frames", { frames: pendingFrames, sessionId: sessionIdRef.current });
         const d = await r.json() as { saved?: number };
         if (d.saved) setTotalFramesSaved((n) => n + d.saved!);
       } catch { /* ignore */ }
@@ -194,18 +179,7 @@ export default function DreamJournal() {
     setIsGenerating(true);
     setGenerateError(null);
     try {
-      const r = await fetch("/api/dream-session-complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: sessionIdRef.current,
-          userId: user.id,
-        }),
-      });
-      if (!r.ok) {
-        const err = await r.json() as { message?: string };
-        throw new Error(err.message || `HTTP ${r.status}`);
-      }
+      const r = await apiRequest("POST", "/api/dream-session-complete", { sessionId: sessionIdRef.current });
       const data = await r.json() as {
         narrative?: string;
         primaryTheme?: string;

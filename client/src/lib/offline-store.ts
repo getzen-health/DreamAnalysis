@@ -11,7 +11,7 @@
  * Call `registerBackgroundSync()` to request a Background Sync event from the SW.
  */
 
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 const DB_NAME = "neural-dream-offline";
 const DB_VERSION = 3; // v3 adds voice_emotion_queue + food_log_queue
@@ -390,17 +390,11 @@ export async function syncAll(userId: string): Promise<SyncResult> {
   const unsyncedDreams = await getUnsyncedDrafts();
   for (const draft of unsyncedDreams) {
     try {
-      const res = await fetch(resolveUrl("/api/dream-analysis"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          dreamText: draft.dreamText,
-          userId,
-          tags: draft.tags,
-          sleepQuality: draft.sleepQuality,
-          sleepDuration: draft.sleepDuration,
-        }),
+      const res = await apiRequest("POST", "/api/dream-analysis", {
+        dreamText: draft.dreamText,
+        tags: draft.tags,
+        sleepQuality: draft.sleepQuality,
+        sleepDuration: draft.sleepDuration,
       });
       if (res.ok) { await markDraftSynced(draft.id); result.dreams++; }
     } catch { /* still offline */ }
@@ -410,20 +404,15 @@ export async function syncAll(userId: string): Promise<SyncResult> {
   const unsyncedSessions = await getUnsyncedEEGSessions();
   for (const session of unsyncedSessions) {
     try {
-      const res = await fetch(resolveUrl("/api/health-metrics"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          userId,
-          sessionType: session.sessionType,
-          durationSeconds: session.durationSeconds,
-          stressIndex: session.stress,
-          focusIndex: session.focus,
-          sleepScore: session.sleepScore,
-          dreamCount: session.dreamCount,
-          timestamp: new Date(session.timestamp).toISOString(),
-        }),
+      const res = await apiRequest("POST", "/api/health-metrics", {
+        userId,
+        sessionType: session.sessionType,
+        durationSeconds: session.durationSeconds,
+        stressIndex: session.stress,
+        focusIndex: session.focus,
+        sleepScore: session.sleepScore,
+        dreamCount: session.dreamCount,
+        timestamp: new Date(session.timestamp).toISOString(),
       });
       if (res.ok) { await markEEGSessionSynced(session.id); result.sessions++; }
     } catch { /* still offline */ }
@@ -433,16 +422,11 @@ export async function syncAll(userId: string): Promise<SyncResult> {
   const unsyncedMetrics = await getUnsyncedHealthMetrics();
   for (const metric of unsyncedMetrics) {
     try {
-      const res = await fetch(resolveUrl("/api/health-metrics"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          userId,
-          metricType: metric.metricType,
-          value: metric.value,
-          timestamp: new Date(metric.timestamp).toISOString(),
-        }),
+      const res = await apiRequest("POST", "/api/health-metrics", {
+        userId,
+        metricType: metric.metricType,
+        value: metric.value,
+        timestamp: new Date(metric.timestamp).toISOString(),
       });
       if (res.ok) { await markHealthMetricSynced(metric.id); result.metrics++; }
     } catch { /* still offline */ }
@@ -452,19 +436,13 @@ export async function syncAll(userId: string): Promise<SyncResult> {
   const unsyncedVoice = await getUnsyncedVoiceEmotions();
   for (const entry of unsyncedVoice) {
     try {
-      const res = await fetch(resolveUrl("/api/voice-emotion"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          userId,
-          emotion: entry.emotion,
-          valence: entry.valence,
-          arousal: entry.arousal,
-          confidence: entry.confidence,
-          probabilities: entry.probabilities,
-          timestamp: new Date(entry.timestamp).toISOString(),
-        }),
+      const res = await apiRequest("POST", "/api/voice-emotion", {
+        emotion: entry.emotion,
+        valence: entry.valence,
+        arousal: entry.arousal,
+        confidence: entry.confidence,
+        probabilities: entry.probabilities,
+        timestamp: new Date(entry.timestamp).toISOString(),
       });
       if (res.ok) { await markVoiceEmotionSynced(entry.id); result.voice++; }
     } catch { /* still offline */ }
@@ -474,17 +452,11 @@ export async function syncAll(userId: string): Promise<SyncResult> {
   const unsyncedFood = await getUnsyncedFoodLogs();
   for (const entry of unsyncedFood) {
     try {
-      const res = await fetch(resolveUrl("/api/food-log"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          userId,
-          foodName: entry.foodName,
-          calories: entry.calories,
-          mealType: entry.mealType,
-          timestamp: new Date(entry.timestamp).toISOString(),
-        }),
+      const res = await apiRequest("POST", "/api/food-log", {
+        foodName: entry.foodName,
+        calories: entry.calories,
+        mealType: entry.mealType,
+        timestamp: new Date(entry.timestamp).toISOString(),
       });
       if (res.ok) { await markFoodLogSynced(entry.id); result.food++; }
     } catch { /* still offline */ }
