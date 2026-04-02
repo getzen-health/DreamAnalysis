@@ -2490,6 +2490,263 @@ async function mealHistoryToggleFavorite(req: VercelRequest, res: VercelResponse
   return success(res, updated);
 }
 
+// ── Dream patterns ────────────────────────────────────────────────────────────
+
+async function dreamPatternsGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 30, 1), 365);
+  const db = getDb();
+  const since = new Date(Date.now() - days * 86_400_000);
+  const dreams = await db.select({
+    id: schema.dreamAnalysis.id,
+    dreamText: schema.dreamAnalysis.dreamText,
+    symbols: schema.dreamAnalysis.symbols,
+    themes: schema.dreamAnalysis.themes,
+    lucidityScore: schema.dreamAnalysis.lucidityScore,
+    sleepQuality: schema.dreamAnalysis.sleepQuality,
+    tags: schema.dreamAnalysis.tags,
+    threatSimulationIndex: schema.dreamAnalysis.threatSimulationIndex,
+    keyInsight: schema.dreamAnalysis.keyInsight,
+    aiAnalysis: schema.dreamAnalysis.aiAnalysis,
+    timestamp: schema.dreamAnalysis.timestamp,
+  }).from(schema.dreamAnalysis)
+    .where(and(eq(schema.dreamAnalysis.userId, userId), gte(schema.dreamAnalysis.timestamp, since)))
+    .orderBy(desc(schema.dreamAnalysis.timestamp))
+    .limit(500);
+
+  // Aggregate themes
+  const themeCounts = new Map<string, number>();
+  for (const d of dreams) {
+    const th = d.themes as string[] | null;
+    if (Array.isArray(th)) {
+      for (const t of th) themeCounts.set(t, (themeCounts.get(t) ?? 0) + 1);
+    }
+  }
+  const themes = [...themeCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ name, count }));
+
+  // Aggregate symbols
+  const symCounts = new Map<string, number>();
+  for (const d of dreams) {
+    const syms = d.symbols as string[] | null;
+    if (Array.isArray(syms)) {
+      for (const s of syms) symCounts.set(s, (symCounts.get(s) ?? 0) + 1);
+    }
+  }
+  const symbols = [...symCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name, count]) => ({ name, count }));
+
+  // Sentiment trend (approximated via threatSimulationIndex: lower = more positive)
+  const sentimentTrend = dreams
+    .filter(d => d.threatSimulationIndex !== null)
+    .map(d => ({
+      date: new Date(d.timestamp).toISOString().slice(0, 10),
+      valence: 1 - (d.threatSimulationIndex as number),
+    }))
+    .reverse();
+
+  // Nightmare detection: tagged or high threatSimulation
+  const nightmareDates: string[] = [];
+  for (const d of dreams) {
+    const tags = d.tags as string[] | null;
+    const isNightmare = (Array.isArray(tags) && tags.includes('nightmare')) ||
+      ((d.threatSimulationIndex as number | null) !== null && (d.threatSimulationIndex as number) > 0.6);
+    if (isNightmare) nightmareDates.push(new Date(d.timestamp).toISOString());
+  }
+
+  // Count by window
+  const now = Date.now();
+  const countInWindow = (windowMs: number) => dreams.filter(d => now - new Date(d.timestamp).getTime() < windowMs).length;
+
+  const topInsights = dreams.slice(0, 5).map(d => ({
+    insight: d.aiAnalysis ? d.aiAnalysis.slice(0, 120) : null,
+    keyInsight: d.keyInsight ?? null,
+    date: new Date(d.timestamp).toISOString(),
+  }));
+
+  return success(res, {
+    period: days,
+    entryCount: dreams.length,
+    themes,
+    symbols,
+    sentimentTrend,
+    topInsights,
+    nightmareCount: nightmareDates.length,
+    nightmareDates,
+    counts: {
+      last7: countInWindow(7 * 86_400_000),
+      last30: countInWindow(30 * 86_400_000),
+      last90: countInWindow(90 * 86_400_000),
+    },
+  });
+}
+
+// ── Dream symbols ─────────────────────────────────────────────────────────────
+
+async function dreamSymbolsGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const rows = await db.select().from(schema.dreamSymbols)
+    .where(eq(schema.dreamSymbols.userId, userId))
+    .orderBy(desc(schema.dreamSymbols.frequency))
+    .limit(100);
+  return success(res, rows);
+}
+
+// ── Dream quality trend ───────────────────────────────────────────────────────
+
+async function dreamQualityTrend(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 14, 1), 90);
+  const db = getDb();
+  const since = new Date(Date.now() - days * 86_400_000);
+  const dreams = await db.select({
+    lucidityScore: schema.dreamAnalysis.lucidityScore,
+    sleepQuality: schema.dreamAnalysis.sleepQuality,
+    threatSimulationIndex: schema.dreamAnalysis.threatSimulationIndex,
+    dreamText: schema.dreamAnalysis.dreamText,
+    timestamp: schema.dreamAnalysis.timestamp,
+  }).from(schema.dreamAnalysis)
+    .where(and(eq(schema.dreamAnalysis.userId, userId), gte(schema.dreamAnalysis.timestamp, since)))
+    .orderBy(asc(schema.dreamAnalysis.timestamp))
+    .limit(500);
+
+  // Compute daily quality scores — blend lucidity(0-100) + sleepQuality(0-10->*10) + threatInversion
+  const dayMap = new Map<string, { sum: number; count: number }>();
+  for (const d of dreams) {
+    const date = new Date(d.timestamp).toISOString().slice(0, 10);
+    const parts: number[] = [];
+    if (d.lucidityScore !== null && d.lucidityScore !== undefined) parts.push(Math.min(d.lucidityScore, 100));
+    if (d.sleepQuality !== null && d.sleepQuality !== undefined) parts.push(Math.min(d.sleepQuality * 10, 100));
+    if (d.threatSimulationIndex !== null && d.threatSimulationIndex !== undefined) parts.push((1 - (d.threatSimulationIndex as number)) * 100);
+    if (d.dreamText) parts.push(60); // base score for having any entry
+    if (parts.length === 0) continue;
+    const score = parts.reduce((a, b) => a + b, 0) / parts.length;
+    const entry = dayMap.get(date) ?? { sum: 0, count: 0 };
+    entry.sum += score;
+    entry.count++;
+    dayMap.set(date, entry);
+  }
+
+  const trend = [...dayMap.entries()].map(([date, { sum, count }]) => ({
+    date,
+    score: Math.round(sum / count),
+    count,
+  }));
+
+  const allScores = trend.map(t => t.score);
+  const avgScore = allScores.length > 0 ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : null;
+  const current = trend.length > 0 ? trend[trend.length - 1].score : null;
+
+  return success(res, { current, avgScore, trend, totalDreams: dreams.length });
+}
+
+// ── Nightmare recurrence ──────────────────────────────────────────────────────
+
+async function nightmareRecurrence(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const since = new Date(Date.now() - 14 * 86_400_000);
+  const dreams = await db.select({
+    tags: schema.dreamAnalysis.tags,
+    threatSimulationIndex: schema.dreamAnalysis.threatSimulationIndex,
+    timestamp: schema.dreamAnalysis.timestamp,
+  }).from(schema.dreamAnalysis)
+    .where(and(eq(schema.dreamAnalysis.userId, userId), gte(schema.dreamAnalysis.timestamp, since)))
+    .orderBy(desc(schema.dreamAnalysis.timestamp))
+    .limit(200);
+
+  const isNightmare = (d: typeof dreams[0]) => {
+    const tags = d.tags as string[] | null;
+    return (Array.isArray(tags) && tags.includes('nightmare')) ||
+      ((d.threatSimulationIndex as number | null) !== null && (d.threatSimulationIndex as number) > 0.6);
+  };
+
+  const now = Date.now();
+  const week1 = dreams.filter(d => now - new Date(d.timestamp).getTime() < 7 * 86_400_000 && isNightmare(d));
+  const week2 = dreams.filter(d => {
+    const age = now - new Date(d.timestamp).getTime();
+    return age >= 7 * 86_400_000 && age < 14 * 86_400_000 && isNightmare(d);
+  });
+
+  const recentNightmares = week1.length;
+  const olderNightmares = week2.length;
+  const trend = recentNightmares > olderNightmares ? 'worsening' : recentNightmares < olderNightmares ? 'improving' : 'stable';
+  const lastNightmare = week1[0] ?? week2[0];
+
+  // IRT sessions
+  const irtRows = await db.select({ createdAt: schema.irtSessions.createdAt })
+    .from(schema.irtSessions)
+    .where(eq(schema.irtSessions.userId, userId))
+    .orderBy(desc(schema.irtSessions.createdAt))
+    .limit(100);
+
+  const irtSessionCount = irtRows.length;
+  const lastIrtDate = irtRows[0]?.createdAt ? new Date(irtRows[0].createdAt).toISOString() : null;
+
+  // Nightmares after most recent IRT session
+  let postIrtNightmares = 0;
+  if (lastIrtDate) {
+    const lastIrtTs = new Date(lastIrtDate).getTime();
+    postIrtNightmares = dreams.filter(d => new Date(d.timestamp).getTime() > lastIrtTs && isNightmare(d)).length;
+  }
+
+  return success(res, {
+    recentNightmares,
+    olderNightmares,
+    trend,
+    lastNightmareDate: lastNightmare ? new Date(lastNightmare.timestamp).toISOString() : null,
+    irtSessionCount,
+    lastIrtDate,
+    postIrtNightmares,
+  });
+}
+
+// ── Device connections (connect / sync / disconnect) ──────────────────────────
+
+async function devicesConnect(req: VercelRequest, res: VercelResponse, provider: string) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const payload = requireAuth(req, res);
+  if (!payload) return;
+  const db = getDb();
+  // Upsert a pending connection — real OAuth flow would redirect to provider
+  const [row] = await db.insert(schema.deviceConnections)
+    .values({
+      userId: payload.userId,
+      provider,
+      accessToken: 'pending',
+      syncStatus: 'pending',
+      connectedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: [schema.deviceConnections.userId, schema.deviceConnections.provider],
+      set: { syncStatus: 'pending', errorMessage: null },
+    })
+    .returning();
+  return success(res, { message: `Connection initiated for ${provider}`, device: row, authUrl: null });
+}
+
+async function devicesSync(req: VercelRequest, res: VercelResponse, provider: string) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const payload = requireAuth(req, res);
+  if (!payload) return;
+  const db = getDb();
+  const [row] = await db.update(schema.deviceConnections)
+    .set({ lastSyncAt: new Date(), syncStatus: 'active', errorMessage: null })
+    .where(and(eq(schema.deviceConnections.userId, payload.userId), eq(schema.deviceConnections.provider, provider)))
+    .returning();
+  if (!row) return error(res, 'Device not connected', 404);
+  return success(res, { message: `Sync triggered for ${provider}`, device: row });
+}
+
+async function devicesDisconnect(req: VercelRequest, res: VercelResponse, provider: string) {
+  if (req.method !== 'DELETE') return methodNotAllowed(res, ['DELETE']);
+  const payload = requireAuth(req, res);
+  if (!payload) return;
+  const db = getDb();
+  await db.delete(schema.deviceConnections)
+    .where(and(eq(schema.deviceConnections.userId, payload.userId), eq(schema.deviceConnections.provider, provider)));
+  return success(res, { message: `Disconnected ${provider}` });
+}
+
 // ── Clear all user data ───────────────────────────────────────────────────────
 
 async function clearUserData(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -2757,7 +3014,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const [s0, s1] = segs;
 
-    if (s0 === 'ping' || s0 === 'health') return res.status(200).json({ ok: true, ts: Date.now() });
+    if (s0 === 'ping' || (s0 === 'health' && !s1)) return res.status(200).json({ ok: true, ts: Date.now() });
 
     if (s0 === 'auth') {
       if (s1 === 'register')        return await authRegister(req, res);
@@ -2915,6 +3172,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return await exerciseHistoryPrs(req, res, s1);
     }
 
+    if (s0 === 'dream-patterns' && s1 && req.method === 'GET') return await dreamPatternsGet(req, res, s1);
+    if (s0 === 'dream-symbols' && s1 && req.method === 'GET') return await dreamSymbolsGet(req, res, s1);
+    if (s0 === 'dream-quality-trend' && s1 && req.method === 'GET') return await dreamQualityTrend(req, res, s1);
+    if (s0 === 'nightmare-recurrence' && s1 && req.method === 'GET') return await nightmareRecurrence(req, res, s1);
+
     if (s0 === 'exercises' && req.method === 'GET') {
       const db = getDb();
       const rows = await db.select().from(schema.exercises).orderBy(asc(schema.exercises.category), asc(schema.exercises.name)).limit(500);
@@ -2937,7 +3199,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (s0 === 'device-connections' && s1 && req.method === 'GET') return await deviceConnectionsList(req, res, s1);
-    if (s0 === 'devices' && s1 && req.method === 'GET') return await devicesList(req, res, s1);
+    if (s0 === 'devices') {
+      if (s1 === 'connect' && segs[2] && req.method === 'POST') return await devicesConnect(req, res, segs[2]);
+      if (s1 === 'sync' && segs[2] && req.method === 'POST') return await devicesSync(req, res, segs[2]);
+      if (s1 && req.method === 'DELETE') return await devicesDisconnect(req, res, s1);
+      if (s1 && req.method === 'GET') return await devicesList(req, res, s1);
+    }
+
+    if (s0 === 'health' && s1 === 'connect' && req.method === 'POST') {
+      return success(res, { message: 'HealthKit connection acknowledged' });
+    }
 
     if (s0 === 'workouts') {
       if (!s1 && req.method === 'POST') return await workoutsPost(req, res);
