@@ -25,7 +25,7 @@ import { useMultimodalEmotion } from "@/hooks/use-multimodal-emotion";
 import { useFusedState } from "@/hooks/use-fused-state";
 import { ConfidenceMeter } from "@/components/confidence-meter";
 import { calculateEmotionConfidence } from "@/lib/confidence-calculator";
-import { getCycleData, getFoodLogs as sbGetFoodLogs, sbGetSetting, sbSaveGeneric, sbSaveSetting } from "../lib/supabase-store";
+import { getCycleData, getFoodLogs as sbGetFoodLogs, sbGetGeneric, sbGetSetting, sbSaveGeneric, sbSaveSetting } from "../lib/supabase-store";
 import { fetchWeather, buildMoodContext, type WeatherData, type WeatherMoodContext } from "@/lib/weather-context";
 import { getCurrentCyclePhase, getCyclePhaseContext, type CyclePhaseContext } from "@/lib/cycle-phase-adjustment";
 import { Cloud, CloudRain, Sun, Snowflake, CloudLightning, CloudFog, CloudSun, HelpCircle } from "lucide-react";
@@ -144,8 +144,8 @@ function getAIInsight(checkin: EmotionCheckin | null): { headline: string; body:
   try {
     const hist = sbGetGeneric<Array<{ stress: number; focus: number }>>("ndw_emotion_history") ?? [];
     if (hist.length >= 3) {
-      baselineStress = hist.reduce((s: number, e) => s + e.stress, 0) / hist.length;
-      baselineFocus = hist.reduce((s: number, e) => s + e.focus, 0) / hist.length;
+      baselineStress = hist.reduce((s: number, e: { stress: number; focus: number }) => s + e.stress, 0) / hist.length;
+      baselineFocus = hist.reduce((s: number, e: { stress: number; focus: number }) => s + e.focus, 0) / hist.length;
       baselineN = hist.length;
     }
   } catch { /* ignore */ }
