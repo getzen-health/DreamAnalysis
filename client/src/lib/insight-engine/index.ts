@@ -9,6 +9,7 @@ import { DeviationDetector, type DeviationEvent } from "./deviation-detector";
 import { PatternDiscovery, type StoredInsight } from "./pattern-discovery";
 import { EmotionTaxonomy, type EmotionFingerprint, type EEGSnapshot } from "./emotion-taxonomy";
 import { InterventionLibrary } from "./intervention-library";
+import { apiRequest } from "@/lib/queryClient";
 
 export interface BriefingRequest {
   sleepData: {
@@ -113,11 +114,7 @@ export class InsightEngine {
   }
 
   async generateMorningBriefing(request: BriefingRequest): Promise<BriefingResponse> {
-    const resp = await fetch("/api/morning-briefing", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(request),
-    });
+    const resp = await apiRequest("POST", "/api/morning-briefing", request);
     if (!resp.ok) throw new Error(`Morning briefing failed: ${resp.status}`);
     const content = await resp.json() as BriefingResponse;
     const today = new Date().toISOString().slice(0, 10);
