@@ -343,6 +343,19 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
   const dreamText = typeof req.body.dreamText === 'string' ? req.body.dreamText.trim() : '';
   if (!dreamText) return badRequest(res, 'dreamText is required');
   if (dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
+  // Validate optional numeric fields
+  const safeSleepQuality = sleepQuality != null ? Number(sleepQuality) : null;
+  if (safeSleepQuality !== null && (!isFinite(safeSleepQuality) || safeSleepQuality < 0 || safeSleepQuality > 10)) {
+    return badRequest(res, 'sleepQuality must be 0–10');
+  }
+  const safeSleepDuration = sleepDuration != null ? Number(sleepDuration) : null;
+  if (safeSleepDuration !== null && (!isFinite(safeSleepDuration) || safeSleepDuration < 0 || safeSleepDuration > 24)) {
+    return badRequest(res, 'sleepDuration must be 0–24 hours');
+  }
+  // Validate optional tags array — cap at 20 tags, each ≤50 chars
+  const safeTags: string[] = Array.isArray(tags)
+    ? tags.slice(0, 20).filter((t: unknown) => typeof t === 'string').map((t: string) => t.trim().slice(0, 50)).filter(Boolean)
+    : [];
   const db = getDb();
   const rl = await checkRateLimit(db, `dreams-create:${userId}`, 20, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many dream submissions. Please wait before trying again.');
@@ -370,7 +383,7 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
   const [entry] = await db.insert(schema.dreamAnalysis).values({
     userId, dreamText, symbols: analysis.symbols || [], emotions: analysis.emotions || [],
     aiAnalysis: analysis.analysis || '', lucidityScore: analysis.lucidityScore || null,
-    sleepQuality: sleepQuality || null, sleepDuration: sleepDuration || null, tags: tags || [],
+    sleepQuality: safeSleepQuality, sleepDuration: safeSleepDuration, tags: safeTags,
   }).returning();
   if (analysis.symbols && (analysis.symbols as string[]).length > 0) {
     const symbolRows = (analysis.symbols as string[]).map((sym) => ({ userId, symbol: sym, meaning: null, frequency: 1 }));
