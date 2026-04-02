@@ -1892,7 +1892,7 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   try {
     const db = getDb();
     const sourceFilter = req.query.source as string | undefined;
-    const limit = Math.min(parseInt(req.query.limit as string) || 1000, 5000);
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 1000, 1), 5000);
 
     const conditions = [eq(schema.userReadings.userId, userId)];
     if (sourceFilter && ['voice', 'food', 'health', 'eeg'].includes(sourceFilter)) {
@@ -2113,12 +2113,22 @@ async function workoutsPut(req: VercelRequest, res: VercelResponse, workoutId: s
   if (!existing) return error(res, 'Workout not found', 404);
   if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your workout');
   const { endedAt, durationMin, caloriesBurned, avgHr, maxHr, notes } = req.body;
+  const parsedEndedAt = endedAt ? new Date(endedAt) : null;
+  if (parsedEndedAt && isNaN(parsedEndedAt.getTime())) return badRequest(res, 'Invalid endedAt timestamp');
+  const parsedDuration = durationMin != null ? Number(durationMin) : null;
+  if (parsedDuration !== null && (!isFinite(parsedDuration) || parsedDuration < 0 || parsedDuration > 1440)) return badRequest(res, 'durationMin must be 0–1440');
+  const parsedCal = caloriesBurned != null ? Number(caloriesBurned) : null;
+  if (parsedCal !== null && (!isFinite(parsedCal) || parsedCal < 0 || parsedCal > 10000)) return badRequest(res, 'caloriesBurned must be 0–10000');
+  const parsedAvgHr = avgHr != null ? Number(avgHr) : null;
+  if (parsedAvgHr !== null && (!isFinite(parsedAvgHr) || parsedAvgHr < 20 || parsedAvgHr > 300)) return badRequest(res, 'avgHr must be 20–300 bpm');
+  const parsedMaxHr = maxHr != null ? Number(maxHr) : null;
+  if (parsedMaxHr !== null && (!isFinite(parsedMaxHr) || parsedMaxHr < 20 || parsedMaxHr > 300)) return badRequest(res, 'maxHr must be 20–300 bpm');
   await db.update(schema.workouts).set({
-    endedAt: endedAt ? new Date(endedAt) : null,
-    durationMin: durationMin != null ? String(durationMin) : null,
-    caloriesBurned: caloriesBurned != null ? String(caloriesBurned) : null,
-    avgHr: avgHr != null ? String(avgHr) : null,
-    maxHr: maxHr != null ? String(maxHr) : null,
+    endedAt: parsedEndedAt,
+    durationMin: parsedDuration !== null ? String(parsedDuration) : null,
+    caloriesBurned: parsedCal !== null ? String(parsedCal) : null,
+    avgHr: parsedAvgHr !== null ? String(parsedAvgHr) : null,
+    maxHr: parsedMaxHr !== null ? String(parsedMaxHr) : null,
     notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
   }).where(eq(schema.workouts.id, workoutId));
   return success(res, { updated: true });
@@ -2216,13 +2226,18 @@ async function habitsPost(req: VercelRequest, res: VercelResponse) {
   if (!authPayload) return;
   const { name, category, icon, targetValue, unit } = req.body;
   if (!name || typeof name !== 'string' || name.length > 100) return badRequest(res, 'name required (max 100 chars)');
+  if (category !== undefined && (typeof category !== 'string' || category.length > 50)) return badRequest(res, 'category must be a string ≤50 chars');
+  if (icon !== undefined && (typeof icon !== 'string' || icon.length > 50)) return badRequest(res, 'icon must be a string ≤50 chars');
+  if (unit !== undefined && (typeof unit !== 'string' || unit.length > 30)) return badRequest(res, 'unit must be a string ≤30 chars');
+  const targetNum = targetValue != null ? Number(targetValue) : null;
+  if (targetNum !== null && (!isFinite(targetNum) || targetNum < 0)) return badRequest(res, 'targetValue must be a non-negative number');
   const db = getDb();
   const [row] = await db.insert(schema.habits).values({
     userId: authPayload.userId,
     name: name.trim(),
     category: typeof category === 'string' ? category : null,
     icon: typeof icon === 'string' ? icon : null,
-    targetValue: targetValue != null ? String(targetValue) : null,
+    targetValue: targetNum !== null ? String(targetNum) : null,
     unit: typeof unit === 'string' ? unit : null,
     isActive: true,
   }).returning();
@@ -2263,8 +2278,13 @@ async function habitLogsPost(req: VercelRequest, res: VercelResponse) {
   const { habitId, value, note } = req.body;
   if (!habitId || typeof habitId !== 'string') return badRequest(res, 'habitId required');
   const val = Number(value);
-  if (isNaN(val)) return badRequest(res, 'value must be a number');
+  if (!isFinite(val) || val < 0) return badRequest(res, 'value must be a non-negative finite number');
   const db = getDb();
+  // Verify the habit exists and belongs to the authenticated user
+  const [habit] = await db.select({ userId: schema.habits.userId }).from(schema.habits)
+    .where(eq(schema.habits.id, habitId)).limit(1);
+  if (!habit) return error(res, 'Habit not found', 404);
+  if (habit.userId !== authPayload.userId) return error(res, 'Forbidden', 403);
   const [row] = await db.insert(schema.habitLogs).values({
     userId: authPayload.userId,
     habitId,
