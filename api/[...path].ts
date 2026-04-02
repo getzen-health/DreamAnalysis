@@ -1502,8 +1502,8 @@ async function studyEnroll(req: VercelRequest, res: VercelResponse) {
   const [participant] = await db.insert(schema.studyParticipants).values({
     userId, studyId, studyCode, consentVersion,
     consentSignedAt: new Date(),
-    consentFullName: consentFullName ?? null,
-    consentInitials: consentInitials ?? null,
+    consentFullName: consentFullName ? String(consentFullName).trim().slice(0, 200) : null,
+    consentInitials: consentInitials ? String(consentInitials).trim().slice(0, 10) : null,
     overnightEegConsent: overnightEegConsent ?? false,
     preferredMorningTime, preferredDaytimeTime, preferredEveningTime,
   }).returning();
@@ -3229,6 +3229,9 @@ async function devicesConnect(req: VercelRequest, res: VercelResponse, provider:
   const payload = requireAuth(req, res);
   if (!payload) return;
   const db = getDb();
+  // Rate limit: 10 device connect attempts per user per hour
+  const rl = await checkRateLimit(db, `devices-connect:${payload.userId}`, 10, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   // Upsert a pending connection — real OAuth flow would redirect to provider
   const [row] = await db.insert(schema.deviceConnections)
     .values({
@@ -3251,6 +3254,9 @@ async function devicesSync(req: VercelRequest, res: VercelResponse, provider: st
   const payload = requireAuth(req, res);
   if (!payload) return;
   const db = getDb();
+  // Rate limit: 20 sync requests per user per hour
+  const rlSync = await checkRateLimit(db, `devices-sync:${payload.userId}`, 20, 60);
+  if (!rlSync.allowed) return tooManyRequests(res, rlSync.retryAfterSeconds!);
   const [row] = await db.update(schema.deviceConnections)
     .set({ lastSyncAt: new Date(), syncStatus: 'active', errorMessage: null })
     .where(and(eq(schema.deviceConnections.userId, payload.userId), eq(schema.deviceConnections.provider, provider)))
