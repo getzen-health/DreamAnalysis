@@ -1804,8 +1804,14 @@ async function readingsCreate(req: VercelRequest, res: VercelResponse) {
     if (!source || !['voice', 'food', 'health', 'eeg'].includes(source)) {
       return badRequest(res, 'source must be one of: voice, food, health, eeg');
     }
+    if (userId !== undefined && (typeof userId !== 'string' || userId.length > 128)) {
+      return badRequest(res, 'Invalid userId');
+    }
 
     const db = getDb();
+    const rlKey = userId ? `readings-create:${userId}` : `readings-create:${getClientIp(req)}`;
+    const rl = await checkRateLimit(db, rlKey, 120, 60);
+    if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
     const [row] = await db.insert(schema.userReadings).values({
       userId: userId ?? null,
       source,
