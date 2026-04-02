@@ -982,7 +982,7 @@ function CycleTab() {
   useEffect(() => {
     if (localCycleData) return;
     if (!user?.id) return;
-    fetch(`/api/cycle/${user.id}/phase`).then(r => r.ok ? r.json() : null).then(phase => {
+    apiRequest("GET", `/api/cycle/${user.id}/phase`).then(r => r.ok ? r.json() : null).then(phase => {
       if (phase && phase.lastPeriodStart && phase.avgCycleLength > 0) {
         const restored: LocalCycleData = {
           lastPeriodStart: phase.lastPeriodStart,
@@ -1023,9 +1023,7 @@ function CycleTab() {
     queryFn: async () => {
       if (user?.id) {
         try {
-          const res = await fetch(`/api/cycle/${user.id}?days=365`, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("auth_token") ?? ""}` },
-          });
+          const res = await apiRequest("GET", `/api/cycle/${user.id}?days=365`);
           if (res.ok) return res.json();
         } catch { /* API unavailable */ }
       }
@@ -1784,7 +1782,7 @@ function MoodTab() {
     staleTime: 30_000,
     queryFn: async () => {
       try {
-        const res = await fetch(`/api/mood/${user?.id}?days=30`);
+        const res = await apiRequest("GET", `/api/mood/${user?.id}?days=30`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) return data;

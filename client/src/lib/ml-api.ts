@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { getParticipantId } from "@/lib/participant";
+import { apiRequest } from "@/lib/queryClient";
 
 // Always use the Railway cloud backend — never fall back to localhost.
 const ML_API_URL_DEFAULT =
@@ -1055,7 +1056,7 @@ export async function getEmotionalFitness(userId: string, force = false, days = 
   if (force) params.set("force", "true");
   if (days !== 14) params.set("days", String(days));
   const qs = params.toString();
-  const res = await fetch(`/api/brain/emotional-fitness/${encodeURIComponent(userId)}${qs ? `?${qs}` : ""}`);
+  const res = await apiRequest("GET", `/api/brain/emotional-fitness/${encodeURIComponent(userId)}${qs ? `?${qs}` : ""}`);
   if (!res.ok) throw new Error("Failed to fetch emotional fitness");
   return res.json();
 }

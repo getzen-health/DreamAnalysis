@@ -12,6 +12,7 @@
 
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
@@ -167,7 +168,7 @@ export default function StressTrends() {
       let all: HistoryEntry[] = [];
       // 1. Express API
       try {
-        const res = await fetch(`/api/brain/history/${userId}?days=90`);
+        const res = await apiRequest("GET", `/api/brain/history/${userId}?days=90`);
         if (res.ok) {
           const json = await res.json();
           if (Array.isArray(json)) all = json;
