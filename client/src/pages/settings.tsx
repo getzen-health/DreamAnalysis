@@ -1,5 +1,5 @@
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { resolveUrl, apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -936,11 +936,7 @@ function NotificationsCard({ userId }: { userId: string }) {
 
       if (sub) {
         const { endpoint, keys } = sub.toJSON() as { endpoint: string; keys: Record<string, string> };
-        await fetch(resolveUrl("/api/notifications/subscribe"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId, endpoint, keys }),
-        });
+        await apiRequest("POST", "/api/notifications/subscribe", { endpoint, keys });
         toast({ title: "Notifications enabled", description: "You'll get a morning brain report reminder at 8 am." });
       } else {
         // SW registered but no VAPID — in-browser only
