@@ -748,15 +748,18 @@ async function healthSamplesPost(req: VercelRequest, res: VercelResponse) {
     if (!requireOwner(req, res, user_id)) return;
     const rows = samples
       .filter((s) => typeof s.value === 'number' && !isNaN(s.value))
-      .map((s) => ({
-        userId: user_id,
-        source: s.source,
-        metric: s.metric,
-        value: s.value,
-        unit: s.unit ?? null,
-        metadata: (s.metadata ?? null) as Record<string, unknown> | null,
-        recordedAt: new Date(s.recorded_at),
-      }));
+      .map((s) => {
+        const recordedAt = s.recorded_at ? new Date(s.recorded_at) : new Date();
+        return {
+          userId: user_id,
+          source: s.source,
+          metric: s.metric,
+          value: s.value,
+          unit: s.unit ?? null,
+          metadata: (s.metadata ?? null) as Record<string, unknown> | null,
+          recordedAt: isNaN(recordedAt.getTime()) ? new Date() : recordedAt,
+        };
+      });
     if (rows.length > 0) {
       await db.insert(schema.healthSamples).values(rows).onConflictDoNothing();
     }
@@ -2677,7 +2680,7 @@ async function dreamFramesPost(req: VercelRequest, res: VercelResponse) {
     betaActivation: typeof f.betaActivation === 'number' ? f.betaActivation : null,
     eyeMovementIndex: typeof f.eyeMovementIndex === 'number' ? f.eyeMovementIndex : null,
     dominantEmotion: typeof f.dominantEmotion === 'string' ? f.dominantEmotion : null,
-    timestamp: f.timestamp ? new Date(f.timestamp) : new Date(),
+    timestamp: (() => { const d = f.timestamp ? new Date(f.timestamp) : new Date(); return isNaN(d.getTime()) ? new Date() : d; })(),
   }));
   await db.insert(schema.dreamFrames).values(rows).onConflictDoNothing();
   return success(res, { saved: rows.length }, 201);
