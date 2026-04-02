@@ -458,6 +458,9 @@ async function dreamAnalysisMultiPassPost(req: VercelRequest, res: VercelRespons
   const { dreamText, recentThemes } = req.body;
   if (!dreamText || typeof dreamText !== 'string') return badRequest(res, 'Missing dreamText');
   if (dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
+  // Rate limit: 15 multi-pass analyses per IP per hour (3 Groq calls each)
+  const rl = await checkRateLimit(getDb(), `dream-multipass:${getClientIp(req)}`, 15, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many dream analysis requests. Please wait before trying again.');
 
   const openai = getOpenAIClient();
   const recentCtx = Array.isArray(recentThemes) && recentThemes.length > 0
@@ -545,6 +548,9 @@ async function aiChatPost(req: VercelRequest, res: VercelResponse) {
   if (typeof message !== 'string' || message.length > 2000) return badRequest(res, 'Message must be a string of ≤2000 characters');
   if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   const db = getDb();
+  // Rate limit: 40 AI chat messages per user per hour
+  const rlChat = await checkRateLimit(db, `ai-chat:${userId}`, 40, 60);
+  if (!rlChat.allowed) return tooManyRequests(res, rlChat.retryAfterSeconds!, 'Too many messages. Please wait before sending more.');
   await db.insert(schema.aiChats).values({ userId, message, isUser: true });
 
   // Fetch last 10 messages for conversation context (5 turns)
@@ -959,6 +965,9 @@ async function analyzeMood(req: VercelRequest, res: VercelResponse) {
   const { text } = req.body;
   if (!text) return badRequest(res, 'Missing text to analyze');
   if (typeof text !== 'string' || text.length > 2000) return badRequest(res, 'Text must be a string of ≤2000 characters');
+  // Rate limit: 60 mood analyses per IP per hour
+  const rlMood = await checkRateLimit(getDb(), `analyze-mood:${getClientIp(req)}`, 60, 60);
+  if (!rlMood.allowed) return tooManyRequests(res, rlMood.retryAfterSeconds!);
   const openai = getOpenAIClient();
   try {
     const resp = await openai.chat.completions.create({
@@ -998,6 +1007,9 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
   if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   if (!textDescription && !imageBase64) return badRequest(res, 'Provide a photo or describe what you ate');
   if (textDescription && (typeof textDescription !== 'string' || textDescription.length > 1000)) return badRequest(res, 'Description must be ≤1000 characters');
+  // Rate limit: 30 food analyses per user per hour
+  const rlFood = await checkRateLimit(getDb(), `food-analyze:${userId}`, 30, 60);
+  if (!rlFood.allowed) return tooManyRequests(res, rlFood.retryAfterSeconds!, 'Too many food analysis requests. Please wait before trying again.');
 
   const db = getDb();
   const jsonPrompt = `Estimate nutrition and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`;
