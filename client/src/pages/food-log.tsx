@@ -6,6 +6,7 @@ import { syncFoodLogToML } from "@/lib/ml-api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Camera,
@@ -175,7 +176,7 @@ export default function FoodLog() {
   const [description, setDescription] = useState("");
 
   // History — omit credentials on native (Capacitor) to avoid CORS failures
-  const { data: history } = useQuery<FoodLog[]>({
+  const { data: history, isLoading: historyLoading } = useQuery<FoodLog[]>({
     queryKey: ["/api/food/logs", USER_ID],
     queryFn: async () => {
       const res = await fetch(resolveUrl(`/api/food/logs/${USER_ID}`));
@@ -799,8 +800,24 @@ export default function FoodLog() {
         </div>
       )}
 
+      {/* Loading skeleton */}
+      {historyLoading && !analysis && !isAnalyzing && (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-2xl p-4 border border-border bg-card space-y-2">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-24 rounded" />
+                <Skeleton className="h-3 w-16 rounded" />
+              </div>
+              <Skeleton className="h-3 w-full rounded" />
+              <Skeleton className="h-3 w-3/4 rounded" />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Empty state */}
-      {(!history || history.length === 0) && !analysis && !isAnalyzing && (
+      {!historyLoading && (!history || history.length === 0) && !analysis && !isAnalyzing && (
         <div className="text-center py-8 space-y-2">
           <TrendingUp className="w-8 h-8 text-muted-foreground/30 mx-auto" />
           <p className="text-sm text-muted-foreground">
