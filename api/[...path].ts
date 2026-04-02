@@ -2126,6 +2126,8 @@ async function workoutsPost(req: VercelRequest, res: VercelResponse) {
   if (!workoutType) return badRequest(res, 'workoutType required');
   if (workoutType.length > 50) return badRequest(res, 'workoutType must be ≤50 chars');
   const db = getDb();
+  const rl = await checkRateLimit(db, `workouts-post:${authPayload.userId}`, 30, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.workouts).values({
     userId: authPayload.userId,
     name: typeof req.body.name === 'string' ? req.body.name.trim().substring(0, 100) : null,
@@ -2220,6 +2222,8 @@ async function workoutTemplatesPost(req: VercelRequest, res: VercelResponse) {
   const { name, description, exercises } = req.body;
   if (!name || typeof name !== 'string' || name.length > 100) return badRequest(res, 'name required (max 100 chars)');
   const db = getDb();
+  const rl = await checkRateLimit(db, `workout-templates:${authPayload.userId}`, 30, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.workoutTemplates).values({
     userId: authPayload.userId,
     name: name.trim(),
@@ -2266,6 +2270,8 @@ async function habitsPost(req: VercelRequest, res: VercelResponse) {
   const targetNum = targetValue != null ? Number(targetValue) : null;
   if (targetNum !== null && (!isFinite(targetNum) || targetNum < 0)) return badRequest(res, 'targetValue must be a non-negative number');
   const db = getDb();
+  const rl = await checkRateLimit(db, `habits-post:${authPayload.userId}`, 50, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.habits).values({
     userId: authPayload.userId,
     name: name.trim(),
@@ -2314,6 +2320,8 @@ async function habitLogsPost(req: VercelRequest, res: VercelResponse) {
   const val = Number(value);
   if (!isFinite(val) || val < 0) return badRequest(res, 'value must be a non-negative finite number');
   const db = getDb();
+  const rl = await checkRateLimit(db, `habit-logs:${authPayload.userId}`, 200, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   // Verify the habit exists and belongs to the authenticated user
   const [habit] = await db.select({ userId: schema.habits.userId }).from(schema.habits)
     .where(eq(schema.habits.id, habitId)).limit(1);
@@ -2465,6 +2473,8 @@ async function realityTestPost(req: VercelRequest, res: VercelResponse) {
   const validResults = ['dreaming', 'awake', 'unsure'];
   if (!result || !validResults.includes(result)) return badRequest(res, 'result must be dreaming, awake, or unsure');
   const db = getDb();
+  const rl = await checkRateLimit(db, `reality-test:${userId}`, 200, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.realityTests).values({
     userId, result,
     notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
@@ -2507,6 +2517,8 @@ async function cyclePost(req: VercelRequest, res: VercelResponse) {
   const { date, flowLevel, symptoms, phase, contraception, basalTemp, notes } = req.body;
   if (!date || typeof date !== 'string') return badRequest(res, 'date required (YYYY-MM-DD)');
   const db = getDb();
+  const rl = await checkRateLimit(db, `cycle-post:${authPayload.userId}`, 50, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.cycleTracking).values({
     userId: authPayload.userId, date,
     flowLevel: flowLevel ?? null,
@@ -2571,6 +2583,8 @@ async function moodLogPost(req: VercelRequest, res: VercelResponse) {
     return badRequest(res, 'energyLevel must be 0–10');
   }
   const db = getDb();
+  const rl = await checkRateLimit(db, `mood-log:${authPayload.userId}`, 100, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.moodLogs).values({
     userId: authPayload.userId,
     moodScore: String(score),
@@ -3322,6 +3336,9 @@ async function clearUserData(req: VercelRequest, res: VercelResponse, userId: st
   if (req.method !== 'DELETE') return methodNotAllowed(res, ['DELETE']);
   if (!requireOwner(req, res, userId)) return;
   const db = getDb();
+  // Rate limit: 2 full data wipes per hour to prevent accidental repeated deletion
+  const rl = await checkRateLimit(db, `clear-user-data:${userId}`, 2, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   // Delete in dependency order (children before parents)
   await db.delete(schema.habitLogs).where(eq(schema.habitLogs.userId, userId));
   await db.delete(schema.habits).where(eq(schema.habits.userId, userId));
@@ -3993,6 +4010,8 @@ async function streaksCheckin(req: VercelRequest, res: VercelResponse) {
 
   const today = new Date().toISOString().slice(0, 10);
   const db = getDb();
+  const rl = await checkRateLimit(db, `streaks-checkin:${uid}`, 10, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
 
   const [existing] = await db.select().from(schema.streaks)
     .where(eq(schema.streaks.userId, uid)).limit(1);
