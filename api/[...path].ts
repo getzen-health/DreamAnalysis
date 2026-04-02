@@ -331,6 +331,7 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { dreamText, userId, tags, sleepQuality, sleepDuration } = req.body;
   if (!dreamText || !userId) return badRequest(res, 'dreamText and userId are required');
+  if (typeof dreamText !== 'string' || dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
   const db = getDb();
   const openai = getOpenAIClient();
   const recentDreams = await db.select({ dreamText: schema.dreamAnalysis.dreamText, symbols: schema.dreamAnalysis.symbols })
@@ -705,6 +706,9 @@ async function healthSamplesPost(req: VercelRequest, res: VercelResponse) {
     };
     if (!user_id || !Array.isArray(samples) || samples.length === 0) {
       return badRequest(res, 'user_id and samples[] required');
+    }
+    if (samples.length > 2000) {
+      return badRequest(res, 'samples[] exceeds max batch size of 2000');
     }
     if (!requireOwner(req, res, user_id)) return;
     const rows = samples
