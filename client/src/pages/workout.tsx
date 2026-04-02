@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
@@ -214,7 +215,7 @@ export default function WorkoutPage() {
   const [shareOpen, setShareOpen] = useState(false);
 
   /* ---- Query workout history ---- */
-  const { data: workoutHistory = [] } = useQuery<Workout[]>({
+  const { data: workoutHistory = [], isLoading: historyLoading } = useQuery<Workout[]>({
     queryKey: [`/api/workouts/${user?.id}`],
     enabled: !!user?.id,
   });
@@ -424,7 +425,21 @@ export default function WorkoutPage() {
         <p className="text-[11px] font-semibold text-muted-foreground/60 uppercase tracking-[0.08em] mb-2">
           {todayWorkouts.length > 0 ? "Previous Workouts" : "Workout History"}
         </p>
-        {workoutHistory.length === 0 ? (
+        {historyLoading ? (
+          <div className="space-y-2">
+            {[1,2,3].map(i => (
+              <div key={i} className="rounded-2xl p-4 bg-card border border-border">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-xl shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-2 w-20" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : workoutHistory.length === 0 ? (
           <div className="rounded-2xl p-6 text-center bg-card border border-border shadow-[0_2px_16px_rgba(0,0,0,0.06)]">
             <Dumbbell className="h-8 w-8 mx-auto mb-3 text-muted-foreground/40" />
             <p className="text-[13px] font-medium text-foreground/70">
