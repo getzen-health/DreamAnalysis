@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { SectionErrorBoundary } from "@/components/section-error-boundary";
 // PRODUCT.md: Phase 1 — The aha moment. User watches stress drop live during breathing.
 import { useLocation } from "wouter";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -596,7 +597,7 @@ export default function Biofeedback() {
       {activeTab === "music" && (
         <div className="space-y-5">
           {/* Spotify connect / auto-play */}
-          <SpotifyConnect autoPlayMood={musicMood as "calm" | "focus"} />
+          <SectionErrorBoundary label="Spotify"><SpotifyConnect autoPlayMood={musicMood as "calm" | "focus"} /></SectionErrorBoundary>
 
           {/* Mood switcher */}
           <div className="flex items-center gap-3">
@@ -1086,12 +1087,14 @@ export default function Biofeedback() {
 
           {/* Detailed before/after summary card */}
           {beforeSnapshot && afterSnapshot && (
-            <InterventionSummary
-              beforeMetrics={beforeSnapshot}
-              afterMetrics={afterSnapshot}
-              duration={elapsed}
-              type={`${exercise.name} breathing`}
-            />
+            <SectionErrorBoundary label="Session Summary">
+              <InterventionSummary
+                beforeMetrics={beforeSnapshot}
+                afterMetrics={afterSnapshot}
+                duration={elapsed}
+                type={`${exercise.name} breathing`}
+              />
+            </SectionErrorBoundary>
           )}
         </div>
       )}
