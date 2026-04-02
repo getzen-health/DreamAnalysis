@@ -423,6 +423,9 @@ async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { dreamText, userId } = req.body;
   if (!dreamText || !userId) return badRequest(res, 'Missing dreamText or userId');
+  const db = getDb();
+  const rl = await checkRateLimit(db, `dream-analysis:${userId}`, 20, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many dream analysis requests. Please wait before trying again.');
   const openai = getOpenAIClient();
   let analysis: Record<string, unknown> = {};
   try {
@@ -438,7 +441,6 @@ async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
   } catch (err) {
     console.error('[dreamAnalysisPost AI]', err instanceof Error ? err.message : err);
   }
-  const db = getDb();
   const [entry] = await db.insert(schema.dreamAnalysis).values({
     userId, dreamText, symbols: analysis.symbols || [], emotions: analysis.emotions || [], aiAnalysis: analysis.analysis || '',
   }).returning();
