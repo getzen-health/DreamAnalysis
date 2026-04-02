@@ -2518,6 +2518,48 @@ async function mealHistoryToggleFavorite(req: VercelRequest, res: VercelResponse
   return success(res, updated);
 }
 
+// ── Community mood feed ───────────────────────────────────────────────────────
+
+async function communityMoodFeed(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const db = getDb();
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000); // last 24 hours
+  // Community entries stored with sessionId = '_community' and userId = null
+  const rows = await db.select({ dominantEmotion: schema.emotionReadings.dominantEmotion })
+    .from(schema.emotionReadings)
+    .where(and(
+      isNull(schema.emotionReadings.userId),
+      eq(schema.emotionReadings.sessionId, '_community'),
+      gte(schema.emotionReadings.timestamp, since),
+    ))
+    .limit(2000);
+  const counts: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.dominantEmotion) counts[r.dominantEmotion] = (counts[r.dominantEmotion] ?? 0) + 1;
+  }
+  return success(res, { counts, total: rows.length });
+}
+
+async function communityShareMood(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { emotion } = req.body || {};
+  const validEmotions = ['happy', 'sad', 'angry', 'fear', 'surprise', 'neutral', 'stressed', 'relaxed', 'focused'];
+  if (!emotion || !validEmotions.includes(emotion)) return badRequest(res, 'Invalid emotion');
+  const db = getDb();
+  // Rate limit: 5 shares per IP per hour to prevent flooding
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(db, `community-mood:${ip}`, 5, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+  // Store anonymously: userId = null, sessionId = '_community'
+  await db.insert(schema.emotionReadings).values({
+    userId: null, sessionId: '_community',
+    stress: 0.5, happiness: 0.5, focus: 0.5, energy: 0.5,
+    dominantEmotion: emotion,
+  });
+  // Return updated counts
+  return communityMoodFeed(req, res);
+}
+
 // ── GET /api/user — return authenticated user profile ────────────────────────
 
 async function userGet(req: VercelRequest, res: VercelResponse) {
@@ -3381,6 +3423,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (s0 === 'exercise-history' && s1 && segs[2] === 'prs' && req.method === 'GET') {
       return await exerciseHistoryPrs(req, res, s1);
+    }
+
+    if (s0 === 'community') {
+      if (s1 === 'mood-feed' && req.method === 'GET') return await communityMoodFeed(req, res);
+      if (s1 === 'share-mood' && req.method === 'POST') return await communityShareMood(req, res);
     }
 
     if (s0 === 'dream-weekly-synthesis' && s1 && req.method === 'POST') return await dreamWeeklySynthesis(req, res, s1);
