@@ -657,6 +657,7 @@ async function emotionsCorrect(req: VercelRequest, res: VercelResponse, id: stri
 }
 
 async function emotionsCorrectLatest(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
   const { userCorrectedEmotion } = req.body;
   const validEmotions = ['happy', 'sad', 'angry', 'fear', 'surprise', 'neutral', 'stress', 'focus', 'relaxed', 'excited'];
@@ -2399,6 +2400,7 @@ async function aiCoachPost(req: VercelRequest, res: VercelResponse) {
 // ── Sleep alarm optimizer ─────────────────────────────────────────────────────
 
 async function sleepAlarm(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const targetWake = req.query.targetWake as string;
   if (!targetWake) return badRequest(res, 'targetWake required (HH:MM)');
@@ -3124,6 +3126,7 @@ async function dreamPatternsGet(req: VercelRequest, res: VercelResponse, userId:
 // ── Dream symbols ─────────────────────────────────────────────────────────────
 
 async function dreamSymbolsGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const db = getDb();
   const rows = await db.select().from(schema.dreamSymbols)
@@ -3136,6 +3139,7 @@ async function dreamSymbolsGet(req: VercelRequest, res: VercelResponse, userId: 
 // ── Dream quality trend ───────────────────────────────────────────────────────
 
 async function dreamQualityTrend(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const days = Math.min(Math.max(parseInt(req.query.days as string) || 14, 1), 90);
   const db = getDb();
@@ -3184,6 +3188,7 @@ async function dreamQualityTrend(req: VercelRequest, res: VercelResponse, userId
 // ── Nightmare recurrence ──────────────────────────────────────────────────────
 
 async function nightmareRecurrence(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const db = getDb();
   const since = new Date(Date.now() - 14 * 86_400_000);
@@ -3920,6 +3925,7 @@ const innerScorePostSchema = z.object({
 });
 
 async function innerScorePost(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   const body = await parseRequestBody(req) as unknown;
   const parsed = innerScorePostSchema.safeParse(body);
   if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid inner score data');
@@ -4025,6 +4031,7 @@ async function streaksCheckin(req: VercelRequest, res: VercelResponse) {
 }
 
 async function streaksGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (!requireOwner(req, res, userId)) return;
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const today = new Date().toISOString().slice(0, 10);
   const db = getDb();
