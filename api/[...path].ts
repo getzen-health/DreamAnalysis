@@ -333,6 +333,8 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
   if (!dreamText || !userId) return badRequest(res, 'dreamText and userId are required');
   if (typeof dreamText !== 'string' || dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
   const db = getDb();
+  const rl = await checkRateLimit(db, `dreams-create:${userId}`, 20, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many dream submissions. Please wait before trying again.');
   const openai = getOpenAIClient();
   const recentDreams = await db.select({ dreamText: schema.dreamAnalysis.dreamText, symbols: schema.dreamAnalysis.symbols })
     .from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId))
@@ -359,10 +361,9 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
     aiAnalysis: analysis.analysis || '', lucidityScore: analysis.lucidityScore || null,
     sleepQuality: sleepQuality || null, sleepDuration: sleepDuration || null, tags: tags || [],
   }).returning();
-  if (analysis.symbols) {
-    for (const sym of analysis.symbols as string[]) {
-      await db.insert(schema.dreamSymbols).values({ userId, symbol: sym, meaning: null, frequency: 1 }).onConflictDoNothing();
-    }
+  if (analysis.symbols && (analysis.symbols as string[]).length > 0) {
+    const symbolRows = (analysis.symbols as string[]).map((sym) => ({ userId, symbol: sym, meaning: null, frequency: 1 }));
+    await db.insert(schema.dreamSymbols).values(symbolRows).onConflictDoNothing();
   }
   return success(res, { ...entry, themes: analysis.themes, wakingLifeConnections: analysis.wakingLifeConnections }, 201);
 }
