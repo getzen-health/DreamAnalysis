@@ -1855,6 +1855,8 @@ async function userIntentPatch(req: VercelRequest, res: VercelResponse) {
   const { intent } = req.body;
   if (!['study', 'explore'].includes(intent)) return badRequest(res, 'invalid intent');
   const db = getDb();
+  const rl = await checkRateLimit(db, `user-intent:${payload.userId}`, 20, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   await db.update(schema.users).set({ intent }).where(eq(schema.users.id, payload.userId));
   return success(res, { success: true, intent });
 }
@@ -1957,6 +1959,8 @@ async function irtSessionPost(req: VercelRequest, res: VercelResponse) {
   if (!rewrittenEnding || typeof rewrittenEnding !== 'string') return badRequest(res, 'rewrittenEnding required');
   if (originalDreamText.length > 10000 || rewrittenEnding.length > 10000) return badRequest(res, 'Text too long (max 10000 chars)');
   const db = getDb();
+  const rl = await checkRateLimit(db, `irt-session:${userId}`, 20, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.irtSessions).values({
     userId,
     originalDreamText,
@@ -2179,6 +2183,8 @@ async function workoutSetsPost(req: VercelRequest, res: VercelResponse, workoutI
     .where(eq(schema.workouts.id, workoutId)).limit(1);
   if (!existing) return error(res, 'Workout not found', 404);
   if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your workout');
+  const rl = await checkRateLimit(db, `workout-sets:${authPayload.userId}`, 200, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const { exerciseId, setNumber, reps, weightKg, durationSec, rpe } = req.body;
   const parsedSetNumber = Math.max(1, Math.min(parseInt(setNumber) || 1, 999));
   const parsedReps = reps != null ? Math.max(0, Math.min(parseInt(reps) || 0, 9999)) : null;
@@ -2242,6 +2248,8 @@ async function workoutTemplatesDelete(req: VercelRequest, res: VercelResponse, t
     .where(eq(schema.workoutTemplates.id, templateId)).limit(1);
   if (!existing) return error(res, 'Template not found', 404);
   if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your template');
+  const rl = await checkRateLimit(db, `workout-templates-delete:${authPayload.userId}`, 30, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   await db.delete(schema.workoutTemplates).where(eq(schema.workoutTemplates.id, templateId));
   return success(res, { deleted: true });
 }
@@ -2293,6 +2301,8 @@ async function habitsDelete(req: VercelRequest, res: VercelResponse, habitId: st
     .where(eq(schema.habits.id, habitId)).limit(1);
   if (!existing) return error(res, 'Habit not found', 404);
   if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your habit');
+  const rl = await checkRateLimit(db, `habits-delete:${authPayload.userId}`, 50, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   // Soft delete
   await db.update(schema.habits).set({ isActive: false }).where(eq(schema.habits.id, habitId));
   return success(res, { deleted: true });
