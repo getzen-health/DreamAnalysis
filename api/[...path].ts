@@ -339,15 +339,20 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
   const historyCtx = recentDreams.length > 0
     ? `\n\nRecent dream themes: ${recentDreams.map((d: (typeof recentDreams)[number]) => (d.symbols as string[] | null)?.join(', ') || 'unknown').join('; ')}`
     : '';
-  const resp = await openai.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: `You are an expert dream analyst combining Jungian, Freudian, and neuroscience perspectives. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":"","lucidityScore":1,"themes":[],"wakingLifeConnections":"","recurringPatterns":""}${historyCtx}` },
-      { role: 'user', content: `Analyze this dream: ${dreamText}` },
-    ],
-    response_format: { type: 'json_object' },
-  });
-  const analysis = JSON.parse(resp.choices[0].message.content || '{}');
+  let analysis: Record<string, unknown> = {};
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: `You are an expert dream analyst combining Jungian, Freudian, and neuroscience perspectives. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":"","lucidityScore":1,"themes":[],"wakingLifeConnections":"","recurringPatterns":""}${historyCtx}` },
+        { role: 'user', content: `Analyze this dream: ${dreamText}` },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    analysis = JSON.parse(resp.choices[0].message.content || '{}');
+  } catch (err) {
+    console.error('[dreamsCreate AI]', err instanceof Error ? err.message : err);
+  }
   const [entry] = await db.insert(schema.dreamAnalysis).values({
     userId, dreamText, symbols: analysis.symbols || [], emotions: analysis.emotions || [],
     aiAnalysis: analysis.analysis || '', lucidityScore: analysis.lucidityScore || null,
@@ -418,15 +423,20 @@ async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
   const { dreamText, userId } = req.body;
   if (!dreamText || !userId) return badRequest(res, 'Missing dreamText or userId');
   const openai = getOpenAIClient();
-  const resp = await openai.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: 'You are a dream analysis expert. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":""}' },
-      { role: 'user', content: `Analyze this dream: ${dreamText}` },
-    ],
-    response_format: { type: 'json_object' },
-  });
-  const analysis = JSON.parse(resp.choices[0].message.content || '{}');
+  let analysis: Record<string, unknown> = {};
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are a dream analysis expert. Respond with JSON: {"symbols":[],"emotions":[{"emotion":"","intensity":0}],"analysis":""}' },
+        { role: 'user', content: `Analyze this dream: ${dreamText}` },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    analysis = JSON.parse(resp.choices[0].message.content || '{}');
+  } catch (err) {
+    console.error('[dreamAnalysisPost AI]', err instanceof Error ? err.message : err);
+  }
   const db = getDb();
   const [entry] = await db.insert(schema.dreamAnalysis).values({
     userId, dreamText, symbols: analysis.symbols || [], emotions: analysis.emotions || [], aiAnalysis: analysis.analysis || '',
@@ -557,15 +567,21 @@ async function aiChatPost(req: VercelRequest, res: VercelResponse) {
     .map((c) => ({ role: c.isUser ? 'user' : 'assistant', content: c.message }));
 
   const openai = getOpenAIClient();
-  const resp = await openai.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: `You are an AI wellness companion for a Brain-Computer Interface system. ${ctx} Be supportive and concise.` },
-      ...historyMsgs,
-      { role: 'user', content: message },
-    ],
-  });
-  const aiMsg = resp.choices[0].message.content || "I'm here to help you with your wellness journey.";
+  let aiMsg: string;
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: `You are an AI wellness companion for a Brain-Computer Interface system. ${ctx} Be supportive and concise.` },
+        ...historyMsgs,
+        { role: 'user', content: message },
+      ],
+    });
+    aiMsg = resp.choices[0].message.content || "I'm here to help you with your wellness journey.";
+  } catch (err) {
+    console.error('[aiChat]', err instanceof Error ? err.message : err);
+    aiMsg = "Sorry, I'm having trouble connecting right now. Please try again in a moment.";
+  }
   const [chat] = await db.insert(schema.aiChats).values({ userId, message: aiMsg, isUser: false }).returning();
   return success(res, chat, 201);
 }
