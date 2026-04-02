@@ -6294,7 +6294,7 @@ Respond ONLY with valid JSON in this exact format: { "insights": [{ "title": str
       let sleepSection = "";
       if (body.sleepData.dataAvailability === "full") {
         sleepSection = `Sleep: ${body.sleepData.totalHours}h total, ${body.sleepData.deepHours}h deep, ${body.sleepData.remHours}h REM, ${body.sleepData.efficiency}% efficiency.`;
-      } else if (body.sleepData.dataAvailability === "total_only") {
+      } else if (body.sleepData.dataAvailability === "partial") {
         sleepSection = `Sleep duration: ${body.sleepData.totalHours}h (stage data unavailable — health platform not connected).`;
       } else {
         sleepSection = ""; // no sleep data

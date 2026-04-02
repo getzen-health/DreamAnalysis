@@ -72,7 +72,11 @@ export class DbStorage implements IStorage {
   }
 
   async createDreamAnalysis(insertAnalysis: InsertDreamAnalysis): Promise<DreamAnalysis> {
-    const rows = await db.insert(dreamAnalysis).values(insertAnalysis).returning();
+    const payload = {
+      ...insertAnalysis,
+      themes: Array.isArray(insertAnalysis.themes) ? (insertAnalysis.themes as string[]) : null,
+    };
+    const rows = await db.insert(dreamAnalysis).values(payload).returning();
     return rows[0];
   }
 
@@ -296,7 +300,7 @@ export class MemStorage implements IStorage {
       voiceRecordingUrl: insertAnalysis.voiceRecordingUrl || null,
       tags: insertAnalysis.tags || null,
       sleepDuration: insertAnalysis.sleepDuration || null,
-      themes: insertAnalysis.themes || null,
+      themes: (Array.isArray(insertAnalysis.themes) ? insertAnalysis.themes as string[] : null),
       emotionalArc: insertAnalysis.emotionalArc || null,
       keyInsight: insertAnalysis.keyInsight || null,
       threatSimulationIndex: insertAnalysis.threatSimulationIndex ?? null,

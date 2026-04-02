@@ -37,8 +37,8 @@ export function joinTranscriptParts(parts: Array<{ transcript: string }>): strin
 export function detectSpeechSupport(): boolean {
   if (typeof window === "undefined") return false;
   return Boolean(
-    (window as Record<string, unknown>).SpeechRecognition ??
-    (window as Record<string, unknown>).webkitSpeechRecognition,
+    (window as unknown as Record<string, unknown>).SpeechRecognition ??
+    (window as unknown as Record<string, unknown>).webkitSpeechRecognition,
   );
 }
 
@@ -88,8 +88,8 @@ export function useVoiceInput(): UseVoiceInputResult {
   const start = useCallback(() => {
     const SR =
       typeof window !== "undefined"
-        ? ((window as Record<string, unknown>).SpeechRecognition ??
-            (window as Record<string, unknown>).webkitSpeechRecognition)
+        ? ((window as unknown as Record<string, unknown>).SpeechRecognition ??
+            (window as unknown as Record<string, unknown>).webkitSpeechRecognition)
         : null;
     if (!SR || recRef.current) return;
 

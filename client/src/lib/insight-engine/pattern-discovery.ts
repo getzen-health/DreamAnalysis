@@ -99,7 +99,7 @@ export class PatternDiscovery {
         });
         supabase.from("user_patterns")
           .upsert(rows, { onConflict: "user_id,pass_type" })
-          .then(({ error }) => { if (error) console.warn("[PatternDiscovery] upsert error:", error.message); });
+          .then(({ error }: { error: { message: string } | null }) => { if (error) console.warn("[PatternDiscovery] upsert error:", error.message); });
       }
     }
 
