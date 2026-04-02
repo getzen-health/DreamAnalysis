@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   age: integer("age"),                  // for research demographics
   deviceType: text("device_type"),      // "muse_2" | "openbci_cyton" | "none"
   intent: varchar("intent", { length: 10 }), // 'study' | 'explore' | null (not yet chosen)
+  role: varchar("role", { length: 10 }).notNull().default('user'), // 'user' | 'admin'
   createdAt: timestamp("created_at").defaultNow().notNull(),
   deletionRequestedAt: timestamp("deletion_requested_at"), // GDPR soft-delete; null = active
 });

@@ -185,7 +185,7 @@ async function authRegister(req: VercelRequest, res: VercelResponse) {
       username: username.trim().toLowerCase(), password: await hashPassword(password), email: normalizedEmail,
     }).returning();
     if (!user) throw new Error('Insert returned no rows — check DB schema/migrations');
-    const token = generateToken({ userId: user.id, username: user.username });
+    const token = generateToken({ userId: user.id, username: user.username, role: (user.role as 'user' | 'admin') ?? 'user' });
     setAuthCookie(res, token);
     const { password: _, ...safe } = user;
     return success(res, { user: safe, token }, 201);
@@ -211,7 +211,7 @@ async function authLogin(req: VercelRequest, res: VercelResponse) {
     const [user] = await db.select().from(schema.users).where(eq(schema.users.username, username.trim()));
     if (!user || !(await verifyPassword(user.password, password)))
       return unauthorized(res, 'Invalid username or password');
-    const token = generateToken({ userId: user.id, username: user.username });
+    const token = generateToken({ userId: user.id, username: user.username, role: (user.role as 'user' | 'admin') ?? 'user' });
     setAuthCookie(res, token);
     const { password: _, ...safe } = user;
     return success(res, { user: safe, token });
