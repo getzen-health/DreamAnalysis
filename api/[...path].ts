@@ -337,7 +337,7 @@ async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
     .from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId))
     .orderBy(desc(schema.dreamAnalysis.timestamp)).limit(5);
   const historyCtx = recentDreams.length > 0
-    ? `\n\nRecent dream themes: ${recentDreams.map(d => (d.symbols as string[] | null)?.join(', ') || 'unknown').join('; ')}`
+    ? `\n\nRecent dream themes: ${recentDreams.map((d: (typeof recentDreams)[number]) => (d.symbols as string[] | null)?.join(', ') || 'unknown').join('; ')}`
     : '';
   const resp = await openai.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
@@ -386,16 +386,16 @@ async function dreamsAnalytics(req: VercelRequest, res: VercelResponse) {
   const total = dreams.length;
   const tagCounts: Record<string, number> = {};
   const emotionCounts: Record<string, number> = {};
-  dreams.forEach(d => {
+  dreams.forEach((d: (typeof dreams)[number]) => {
     (d.tags as string[] | null)?.forEach(t => { tagCounts[t] = (tagCounts[t] || 0) + 1; });
     (d.emotions as Array<{ emotion: string }> | null)?.forEach(e => { emotionCounts[e.emotion] = (emotionCounts[e.emotion] || 0) + 1; });
   });
   return success(res, {
     totalDreams: total,
-    avgSleepQuality: Math.round(dreams.reduce((s, d) => s + (d.sleepQuality || 0), 0) / Math.max(total, 1) * 10) / 10,
-    avgLucidity: Math.round(dreams.reduce((s, d) => s + (d.lucidityScore || 0), 0) / Math.max(total, 1) * 10) / 10,
+    avgSleepQuality: Math.round(dreams.reduce((s: number, d: (typeof dreams)[number]) => s + (d.sleepQuality || 0), 0) / Math.max(total, 1) * 10) / 10,
+    avgLucidity: Math.round(dreams.reduce((s: number, d: (typeof dreams)[number]) => s + (d.lucidityScore || 0), 0) / Math.max(total, 1) * 10) / 10,
     tagDistribution: tagCounts, emotionDistribution: emotionCounts,
-    topSymbols: symbols.sort((a, b) => (b.frequency || 0) - (a.frequency || 0)).slice(0, 10),
+    topSymbols: symbols.sort((a: (typeof symbols)[number], b: (typeof symbols)[number]) => (b.frequency || 0) - (a.frequency || 0)).slice(0, 10),
   });
 }
 
@@ -745,7 +745,7 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
   if (type === 'healthkit') {
     const metrics = await db.select().from(schema.healthMetrics)
       .where(eq(schema.healthMetrics.userId, userId)).orderBy(asc(schema.healthMetrics.timestamp));
-    const records = metrics.flatMap(m => {
+    const records = metrics.flatMap((m: (typeof metrics)[number]) => {
       const ts = new Date(m.timestamp).toISOString().replace('T', ' ').slice(0, 19) + ' +0000';
       const rows: string[] = [];
       if (m.heartRate)    rows.push(`  <Record type="HKQuantityTypeIdentifierHeartRate" sourceName="AntarAI" unit="count/min" creationDate="${ts}" startDate="${ts}" endDate="${ts}" value="${m.heartRate}"/>`);
