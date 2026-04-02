@@ -372,8 +372,8 @@ async function dreamsList(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const userId = req.query.userId as string;
   if (!userId) return error(res, 'userId required', 400);
-  const page = parseInt(req.query.page as string) || 1;
-  const limit = parseInt(req.query.limit as string) || 20;
+  const page = Math.max(parseInt(req.query.page as string) || 1, 1);
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100);
   const db = getDb();
   const dreams = await db.select().from(schema.dreamAnalysis)
     .where(eq(schema.dreamAnalysis.userId, userId))
@@ -660,7 +660,7 @@ async function emotionsHistory(req: VercelRequest, res: VercelResponse) {
   const userId = req.query.userId as string;
   if (!userId) return error(res, 'userId required', 400);
   if (!requireOwner(req, res, userId)) return;
-  const limit = parseInt(req.query.limit as string) || 50;
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 1000);
   const db = getDb();
   const rows = await db.select().from(schema.emotionReadings)
     .where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp)).limit(limit);
