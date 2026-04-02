@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useDevice } from "@/hooks/use-device";
@@ -183,7 +183,7 @@ export default function SleepSession() {
   }>({
     queryKey: ["/api/sleep-alarm", CURRENT_USER, targetWake],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/sleep-alarm/${CURRENT_USER}?targetWake=${targetWake}`));
+      const res = await apiRequest("GET", `/api/sleep-alarm/${CURRENT_USER}?targetWake=${targetWake}`);
       if (!res.ok) throw new Error("alarm fetch failed");
       return res.json();
     },
@@ -194,7 +194,7 @@ export default function SleepSession() {
   const { data: healthMetrics } = useQuery<HealthMetric[]>({
     queryKey: ["/api/health-metrics", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/health-metrics/${CURRENT_USER}`));
+      const res = await apiRequest("GET", `/api/health-metrics/${CURRENT_USER}`);
       if (!res.ok) return [];
       return res.json();
     },

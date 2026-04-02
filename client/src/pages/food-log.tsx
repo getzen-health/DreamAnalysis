@@ -1,7 +1,7 @@
 import { getParticipantId } from "@/lib/participant";
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { resolveUrl, apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { syncFoodLogToML } from "@/lib/ml-api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -179,7 +179,7 @@ export default function FoodLog() {
   const { data: history, isLoading: historyLoading } = useQuery<FoodLog[]>({
     queryKey: ["/api/food/logs", USER_ID],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/food/logs/${USER_ID}`));
+      const res = await apiRequest("GET", `/api/food/logs/${USER_ID}`);
       if (!res.ok) return [];
       return res.json();
     },
@@ -189,7 +189,7 @@ export default function FoodLog() {
   const { data: mealHistoryData } = useQuery<MealHistoryEntry[]>({
     queryKey: ["/api/meal-history", USER_ID],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/meal-history/${USER_ID}`));
+      const res = await apiRequest("GET", `/api/meal-history/${USER_ID}`);
       if (!res.ok) return [];
       return res.json();
     },

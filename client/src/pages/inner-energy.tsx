@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -128,7 +128,7 @@ export default function InnerEnergy() {
   const { data: healthMetrics } = useQuery<HealthMetric[]>({
     queryKey: ["/api/health-metrics-energy", CURRENT_USER],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/health-metrics/${CURRENT_USER}`));
+      const res = await apiRequest("GET", `/api/health-metrics/${CURRENT_USER}`);
       if (!res.ok) return [];
       return res.json();
     },
