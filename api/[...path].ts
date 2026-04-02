@@ -2726,6 +2726,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (s0 === 'irt-session' && req.method === 'POST') return await irtSessionPost(req, res);
 
+    if (s0 === 'exercises' && req.method === 'GET') {
+      const db = getDb();
+      const rows = await db.select().from(schema.exercises).orderBy(asc(schema.exercises.category), asc(schema.exercises.name)).limit(500);
+      return success(res, rows);
+    }
+
     if (s0 === 'research' && s1 === 'correlation' && segs[2] && req.method === 'GET') {
       return await researchCorrelation(req, res, segs[2]);
     }
