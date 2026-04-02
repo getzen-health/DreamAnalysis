@@ -436,9 +436,10 @@ async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const authPayload = requireAuth(req, res);
   if (!authPayload) return;
-  const { dreamText } = req.body;
   const userId = authPayload.userId;
+  const dreamText = typeof req.body?.dreamText === 'string' ? req.body.dreamText.trim() : '';
   if (!dreamText) return badRequest(res, 'Missing dreamText');
+  if (dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
   const db = getDb();
   const rl = await checkRateLimit(db, `dream-analysis:${userId}`, 20, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many dream analysis requests. Please wait before trying again.');
@@ -2143,7 +2144,7 @@ async function workoutsPut(req: VercelRequest, res: VercelResponse, workoutId: s
     caloriesBurned: parsedCal !== null ? String(parsedCal) : null,
     avgHr: parsedAvgHr !== null ? String(parsedAvgHr) : null,
     maxHr: parsedMaxHr !== null ? String(parsedMaxHr) : null,
-    notes: typeof notes === 'string' ? notes.substring(0, 500) : null,
+    notes: typeof notes === 'string' ? notes.trim().substring(0, 500) : null,
   }).where(eq(schema.workouts.id, workoutId));
   return success(res, { updated: true });
 }
@@ -2551,7 +2552,7 @@ async function moodLogPost(req: VercelRequest, res: VercelResponse) {
     userId: authPayload.userId,
     moodScore: String(score),
     energyLevel: energyNum !== null ? String(energyNum) : null,
-    notes: typeof notes === 'string' ? notes.substring(0, 1000) : null,
+    notes: typeof notes === 'string' ? notes.trim().substring(0, 1000) : null,
   }).returning();
   return success(res, row, 201);
 }
@@ -2573,6 +2574,7 @@ async function moodLogGet(req: VercelRequest, res: VercelResponse, userId: strin
 
 async function mealHistoryList(req: VercelRequest, res: VercelResponse, userId: string) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 200);
   const rows = await db.select().from(schema.mealHistory)
