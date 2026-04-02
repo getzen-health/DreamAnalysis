@@ -54,6 +54,60 @@ interface AICompanionProps {
 }
 
 // ---------------------------------------------------------------------------
+// Lightweight markdown renderer for AI messages
+// Handles: **bold**, *italic*, numbered lists, bullet lists, line breaks
+// ---------------------------------------------------------------------------
+function renderInline(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*(.+?)\*\*|\*(.+?)\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    if (match[1] !== undefined) parts.push(<strong key={key++}>{match[1]}</strong>);
+    else if (match[2] !== undefined) parts.push(<em key={key++}>{match[2]}</em>);
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
+function MarkdownMessage({ text }: { text: string }) {
+  const lines = text.split('\n');
+  const result: React.ReactNode[] = [];
+  let olItems: React.ReactNode[] = [];
+  let ulItems: React.ReactNode[] = [];
+  let key = 0;
+
+  const flushLists = () => {
+    if (olItems.length) { result.push(<ol key={key++} className="list-decimal ml-4 space-y-0.5 my-1">{olItems}</ol>); olItems = []; }
+    if (ulItems.length) { result.push(<ul key={key++} className="list-disc ml-4 space-y-0.5 my-1">{ulItems}</ul>); ulItems = []; }
+  };
+
+  for (const line of lines) {
+    const olMatch = line.match(/^(\d+)\.\s+(.*)$/);
+    const ulMatch = line.match(/^[-*]\s+(.*)$/);
+    if (olMatch) {
+      if (ulItems.length) flushLists();
+      olItems.push(<li key={key++}>{renderInline(olMatch[2])}</li>);
+    } else if (ulMatch) {
+      if (olItems.length) flushLists();
+      ulItems.push(<li key={key++}>{renderInline(ulMatch[1])}</li>);
+    } else {
+      flushLists();
+      if (line.trim() === '') {
+        result.push(<div key={key++} className="h-1.5" />);
+      } else {
+        result.push(<p key={key++} className="leading-relaxed">{renderInline(line)}</p>);
+      }
+    }
+  }
+  flushLists();
+  return <div className="space-y-0.5">{result}</div>;
+}
+
+// ---------------------------------------------------------------------------
 // Local response engine -- works without any backend API key
 // ---------------------------------------------------------------------------
 function generateLocalResponse(message: string, eegContext: string): string {
@@ -732,13 +786,13 @@ export function AICompanion({ userId }: AICompanionProps) {
               </div>
             )}
             <div
-              className={`rounded-2xl px-4 py-3 max-w-[80%] whitespace-pre-wrap ${
+              className={`rounded-2xl px-4 py-3 max-w-[80%] ${
                 chat.isUser
-                  ? "bg-primary text-primary-foreground rounded-br-sm text-base"
+                  ? "bg-primary text-primary-foreground rounded-br-sm text-base whitespace-pre-wrap"
                   : "bg-card border-l-2 border-primary/40 rounded-bl-sm text-sm"
               }`}
             >
-              {chat.message}
+              {chat.isUser ? chat.message : <MarkdownMessage text={chat.message} />}
               <span
                 className={`text-[10px] mt-1 block ${
                   chat.isUser
