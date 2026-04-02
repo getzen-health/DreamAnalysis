@@ -4,6 +4,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ScoreCircle } from "@/components/score-circle";
 import { Sparkles, Activity, Radio, Heart } from "lucide-react";
 import { useDevice } from "@/hooks/use-device";
@@ -110,7 +111,7 @@ export default function InnerEnergy() {
   const analysis = latestFrame?.analysis;
   const { emotion: currentEmotion } = useCurrentEmotion();
 
-  const { data: latestVoice } = useQuery<Record<string, unknown> | null>({
+  const { data: latestVoice, isLoading: voiceLoading } = useQuery<Record<string, unknown> | null>({
     queryKey: ["voice-inner-energy", CURRENT_USER],
     queryFn: async () => {
       const res = await fetch(`${getMLApiUrl()}/api/voice-watch/latest/${CURRENT_USER}`);
@@ -125,7 +126,7 @@ export default function InnerEnergy() {
   });
 
   // Fallback: fetch health metrics for when no voice or EEG is available
-  const { data: healthMetrics } = useQuery<HealthMetric[]>({
+  const { data: healthMetrics, isLoading: healthLoading } = useQuery<HealthMetric[]>({
     queryKey: ["/api/health-metrics-energy", CURRENT_USER],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/health-metrics/${CURRENT_USER}`);
@@ -334,6 +335,18 @@ export default function InnerEnergy() {
       </div>
 
       {/* Score Gauges */}
+      {(voiceLoading || healthLoading) && !isStreaming && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="score-card p-5 flex flex-col items-center gap-3">
+              <Skeleton className="h-28 w-28 rounded-full" />
+              <Skeleton className="h-5 w-20 rounded" />
+              <Skeleton className="h-3 w-32 rounded" />
+            </div>
+          ))}
+        </div>
+      )}
+      {!(voiceLoading || healthLoading) && (
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="score-card p-5 flex flex-col items-center hover-glow">
           <ScoreCircle
@@ -379,6 +392,7 @@ export default function InnerEnergy() {
           </p>
         </div>
       </div>
+      )}
 
       {/* Chakra Activations */}
       <Card className="glass-card p-6 hover-glow">
