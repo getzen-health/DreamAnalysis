@@ -380,8 +380,8 @@ async function dreamsAnalytics(req: VercelRequest, res: VercelResponse) {
   if (!userId) return error(res, 'userId required', 400);
   const db = getDb();
   const [dreams, symbols] = await Promise.all([
-    db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)),
-    db.select().from(schema.dreamSymbols).where(eq(schema.dreamSymbols.userId, userId)),
+    db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)).limit(1000),
+    db.select().from(schema.dreamSymbols).where(eq(schema.dreamSymbols.userId, userId)).limit(500),
   ]);
   const total = dreams.length;
   const tagCounts: Record<string, number> = {};
@@ -748,7 +748,7 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
   // ── Apple Health XML ────────────────────────────────────────────────────
   if (type === 'healthkit') {
     const metrics = await db.select().from(schema.healthMetrics)
-      .where(eq(schema.healthMetrics.userId, userId)).orderBy(asc(schema.healthMetrics.timestamp));
+      .where(eq(schema.healthMetrics.userId, userId)).orderBy(asc(schema.healthMetrics.timestamp)).limit(5000);
     const records = metrics.flatMap((m: (typeof metrics)[number]) => {
       const ts = new Date(m.timestamp).toISOString().replace('T', ' ').slice(0, 19) + ' +0000';
       const rows: string[] = [];
@@ -766,7 +766,7 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
   // ── Dreams CSV ──────────────────────────────────────────────────────────
   if (type === 'dreams') {
     const dreams = await db.select().from(schema.dreamAnalysis)
-      .where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp));
+      .where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)).limit(5000);
     if (dreams.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('timestamp,dreamText,symbols,aiAnalysis,lucidityScore\nNo dreams recorded yet'); }
     const escape = (s: unknown) => `"${String(s ?? '').replace(/"/g, '""')}"`;
     const rows = dreams.map((d: (typeof dreams)[number]) => [
@@ -782,7 +782,7 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
   // ── Emotions CSV ────────────────────────────────────────────────────────
   if (type === 'emotions') {
     const readings = await db.select().from(schema.emotionReadings)
-      .where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp));
+      .where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp)).limit(5000);
     if (readings.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('No emotion data yet'); }
     const rows = readings.map((r: (typeof readings)[number]) => [
       r.timestamp, r.dominantEmotion, r.stress, r.happiness, r.focus, r.energy,
@@ -796,9 +796,9 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
   // ── All data CSV (multi-section) ────────────────────────────────────────
   if (type === 'all') {
     const [metrics, dreams, readings] = await Promise.all([
-      db.select().from(schema.healthMetrics).where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp)),
-      db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)),
-      db.select().from(schema.emotionReadings).where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp)),
+      db.select().from(schema.healthMetrics).where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp)).limit(5000),
+      db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)).limit(5000),
+      db.select().from(schema.emotionReadings).where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp)).limit(5000),
     ]);
     const escape = (s: unknown) => `"${String(s ?? '').replace(/"/g, '""')}"`;
     const sections = [
@@ -819,7 +819,7 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
 
   // ── Health metrics CSV (default) ────────────────────────────────────────
   const metrics = await db.select().from(schema.healthMetrics)
-    .where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp));
+    .where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp)).limit(5000);
   if (metrics.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('No data available'); }
   const rows = metrics.map((m: (typeof metrics)[number]) => [m.timestamp, m.heartRate, m.stressLevel, m.sleepQuality, m.neuralActivity, m.dailySteps, m.sleepDuration].join(','));
   res.setHeader('Content-Type', 'text/csv');

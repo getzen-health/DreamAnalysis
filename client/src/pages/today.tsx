@@ -1053,6 +1053,7 @@ export default function Today() {
       }).sort((a, b) => new Date(b.loggedAt ?? 0).getTime() - new Date(a.loggedAt ?? 0).getTime());
     },
     retry: false,
+    staleTime: 10 * 60_000,
   });
 
   const today = new Date().toISOString().slice(0, 10);
