@@ -1,5 +1,5 @@
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl, apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -912,7 +912,7 @@ function NotificationsCard({ userId }: { userId: string }) {
       // Try to get VAPID key from server; gracefully handle missing key
       let sub: PushSubscription | null = null;
       try {
-        const vapidRes = await fetch(resolveUrl("/api/notifications/vapid-public-key"));
+        const vapidRes = await apiRequest("GET", "/api/notifications/vapid-public-key");
         if (vapidRes.ok) {
           const { publicKey } = await vapidRes.json();
           sub = await reg.pushManager.subscribe({

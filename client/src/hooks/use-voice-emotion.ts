@@ -10,7 +10,7 @@ import { useState, useRef, useCallback, useEffect, useContext } from "react";
 import { getMLApiUrl } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
 import { VoiceCacheContext } from "./use-voice-cache";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 export interface VoiceEmotionResult {
   emotion: string;
@@ -163,20 +163,16 @@ export function useVoiceEmotion(
         setVoiceCacheResult(result);
 
         // Persist to user_readings for model retraining (fire-and-forget)
-        fetch(resolveUrl("/api/readings"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: resolvedUserId,
-            source: "voice",
-            emotion: result.emotion,
-            valence: result.valence,
-            arousal: result.arousal,
-            stress: result.stress_from_watch ?? null,
-            confidence: result.confidence,
-            modelType: result.model_type,
-            features: { probabilities: result.probabilities },
-          }),
+        apiRequest("POST", "/api/readings", {
+          userId: resolvedUserId,
+          source: "voice",
+          emotion: result.emotion,
+          valence: result.valence,
+          arousal: result.arousal,
+          stress: result.stress_from_watch ?? null,
+          confidence: result.confidence,
+          modelType: result.model_type,
+          features: { probabilities: result.probabilities },
         }).catch(() => {
           // Silent — storage failure is not user-facing
         });
