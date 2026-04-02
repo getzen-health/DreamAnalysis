@@ -1858,6 +1858,39 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Mood log ─────────────────────────────────────────────────────────────────
+
+async function moodLogPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { moodScore, energyLevel, notes } = req.body;
+  if (moodScore === undefined || moodScore === null) return badRequest(res, 'moodScore required');
+  const score = Number(moodScore);
+  if (isNaN(score) || score < 0 || score > 10) return badRequest(res, 'moodScore must be 0–10');
+  const db = getDb();
+  const [row] = await db.insert(schema.moodLogs).values({
+    userId: authPayload.userId,
+    moodScore: String(score),
+    energyLevel: energyLevel != null ? String(Number(energyLevel)) : null,
+    notes: typeof notes === 'string' ? notes.substring(0, 1000) : null,
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function moodLogGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 7, 1), 365);
+  const since = new Date(Date.now() - days * 86_400_000);
+  const db = getDb();
+  const rows = await db.select().from(schema.moodLogs)
+    .where(and(eq(schema.moodLogs.userId, userId), gte(schema.moodLogs.loggedAt, since)))
+    .orderBy(desc(schema.moodLogs.loggedAt))
+    .limit(500);
+  return success(res, rows);
+}
+
 // ── Meal history ─────────────────────────────────────────────────────────────
 
 async function mealHistoryList(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -2115,6 +2148,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'readings') {
       if (!s1 && req.method === 'POST') return await readingsCreate(req, res);
       if (s1 && req.method === 'GET')   return await readingsList(req, res, s1);
+    }
+
+    if (s0 === 'mood') {
+      if (!s1 && req.method === 'POST') return await moodLogPost(req, res);
+      if (s1 && req.method === 'GET') return await moodLogGet(req, res, s1);
     }
 
     if (s0 === 'meal-history') {
