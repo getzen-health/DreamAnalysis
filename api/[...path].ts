@@ -899,7 +899,7 @@ async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
 
   const payload = JSON.stringify({ title, body, url });
   const results = await Promise.allSettled(
-    subs.map(sub =>
+    subs.map((sub: { endpoint: string; keys: unknown }) =>
       webPush.sendNotification(
         { endpoint: sub.endpoint, keys: sub.keys as { p256dh: string; auth: string } },
         payload,
@@ -2037,7 +2037,7 @@ async function innerScoreGet(req: VercelRequest, res: VercelResponse, userId: st
   const history = await db.select().from(schema.innerScores)
     .where(and(eq(schema.innerScores.userId, userId), gte(schema.innerScores.createdAt, sevenDaysAgo)))
     .orderBy(asc(schema.innerScores.createdAt));
-  const trend = history.map(h => h.score);
+  const trend = history.map((h: { score: number }) => h.score);
   const yesterday = history.length >= 2 ? history[history.length - 2].score : null;
   const delta = yesterday != null ? cached.score - yesterday : null;
   const label = cached.score >= 80 ? 'Thriving' : cached.score >= 60 ? 'Good' : cached.score >= 40 ? 'Steady' : 'Low';
@@ -2061,7 +2061,7 @@ async function innerScoreHistory(req: VercelRequest, res: VercelResponse, userId
   const rows = await db.select().from(schema.innerScores)
     .where(and(eq(schema.innerScores.userId, userId), gte(schema.innerScores.createdAt, since)))
     .orderBy(desc(schema.innerScores.createdAt));
-  return success(res, { scores: rows.map(r => ({ date: r.createdAt.toISOString().slice(0, 10), score: r.score, tier: r.tier })) });
+  return success(res, { scores: rows.map((r: { createdAt: Date; score: number; tier: string }) => ({ date: r.createdAt.toISOString().slice(0, 10), score: r.score, tier: r.tier })) });
 }
 
 // ── Streak handlers ──────────────────────────────────────────────────────────
