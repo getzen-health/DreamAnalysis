@@ -521,7 +521,8 @@ async function dreamAnalysisMultiPassPost(req: VercelRequest, res: VercelRespons
         lucidityIndicators: Array.isArray(parsed.lucidityIndicators) ? parsed.lucidityIndicators : [],
         actionableInsight: parsed.actionableInsight || '',
       });
-    } catch {
+    } catch (fallbackErr) {
+      console.error('[dreamAnalyze fallback]', fallbackErr instanceof Error ? fallbackErr.message : fallbackErr);
       return error(res, 'Dream analysis failed', 500);
     }
   }
@@ -941,16 +942,23 @@ async function analyzeMood(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { text } = req.body;
   if (!text) return badRequest(res, 'Missing text to analyze');
+  if (typeof text !== 'string' || text.length > 2000) return badRequest(res, 'Text must be a string of ≤2000 characters');
   const openai = getOpenAIClient();
-  const resp = await openai.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: 'Analyze the mood from text. Respond with JSON: {"mood":"","stressLevel":0,"emotions":[],"recommendations":[]}' },
-      { role: 'user', content: text },
-    ],
-    response_format: { type: 'json_object' },
-  });
-  return success(res, JSON.parse(resp.choices[0].message.content || '{}'));
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'Analyze the mood from text. Respond with JSON: {"mood":"","stressLevel":0,"emotions":[],"recommendations":[]}' },
+        { role: 'user', content: text },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    const parsed = JSON.parse(resp.choices[0].message.content || '{}');
+    return success(res, parsed);
+  } catch (err) {
+    console.error('[analyzeMood]', err instanceof Error ? err.message : err);
+    return error(res, 'Mood analysis failed', 500);
+  }
 }
 
 // ── Food log ─────────────────────────────────────────────────────────────────
@@ -971,7 +979,9 @@ async function foodAnalyze(req: VercelRequest, res: VercelResponse) {
   const body = req.body ?? {};
   const { userId, imageBase64, textDescription, mealType, moodBefore, notes } = body;
   if (!userId) return badRequest(res, 'userId required');
+  if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   if (!textDescription && !imageBase64) return badRequest(res, 'Provide a photo or describe what you ate');
+  if (textDescription && (typeof textDescription !== 'string' || textDescription.length > 1000)) return badRequest(res, 'Description must be ≤1000 characters');
 
   const db = getDb();
   const jsonPrompt = `Estimate nutrition and return ONLY valid JSON with this exact shape:\n${FOOD_JSON_SCHEMA}`;
