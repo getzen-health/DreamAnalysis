@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
@@ -136,7 +137,7 @@ export default function Habits() {
   const [logNote, setLogNote] = useState("");
 
   // Fetch habits
-  const { data: userHabits = [] } = useQuery<Habit[]>({
+  const { data: userHabits = [], isLoading: habitsLoading } = useQuery<Habit[]>({
     queryKey: [`/api/habits/${user?.id}`],
     enabled: !!user?.id,
     retry: false,
@@ -465,7 +466,22 @@ export default function Habits() {
       )}
 
       {/* Habits list */}
-      {userHabits.length === 0 ? (
+      {habitsLoading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="rounded-xl border border-border bg-card p-3.5 space-y-2">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="h-2 w-16" />
+                </div>
+                <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : userHabits.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <ListChecks className="h-10 w-10 mx-auto mb-3 opacity-40" />
           <p className="text-sm font-medium">No habits yet</p>

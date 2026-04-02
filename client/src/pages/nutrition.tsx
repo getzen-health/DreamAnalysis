@@ -3026,7 +3026,8 @@ export default function Nutrition() {
                   {todayLogs.length === 0 ? (
                     <div style={{ padding: "24px 16px", textAlign: "center" }}>
                       <div style={{ fontSize: 20, fontWeight: 700, color: "var(--muted-foreground)", marginBottom: 4 }}>0 calories</div>
-                      <div style={{ fontSize: 12, color: "var(--muted-foreground)" }}>No meals logged today</div>
+                      <div style={{ fontSize: 12, color: "var(--muted-foreground)", marginBottom: 8 }}>No meals logged today</div>
+                      <div style={{ fontSize: 11, color: "var(--muted-foreground)", opacity: 0.7 }}>Tap + to log your first meal</div>
                     </div>
                   ) : (
                     todayLogs.map((log, idx) => (
