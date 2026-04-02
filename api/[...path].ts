@@ -765,7 +765,7 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
       .where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp));
     if (dreams.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('timestamp,dreamText,symbols,aiAnalysis,lucidityScore\nNo dreams recorded yet'); }
     const escape = (s: unknown) => `"${String(s ?? '').replace(/"/g, '""')}"`;
-    const rows = dreams.map(d => [
+    const rows = dreams.map((d: (typeof dreams)[number]) => [
       d.timestamp, escape(d.dreamText),
       escape((d.symbols as string[] | null)?.join('; ') ?? ''),
       escape(d.aiAnalysis ?? ''), d.lucidityScore ?? '',
@@ -780,7 +780,7 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
     const readings = await db.select().from(schema.emotionReadings)
       .where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp));
     if (readings.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('No emotion data yet'); }
-    const rows = readings.map(r => [
+    const rows = readings.map((r: (typeof readings)[number]) => [
       r.timestamp, r.dominantEmotion, r.stress, r.happiness, r.focus, r.energy,
       r.valence ?? '', r.arousal ?? '', r.userCorrectedEmotion ?? '',
     ].join(','));
@@ -800,13 +800,13 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
     const sections = [
       '# HEALTH METRICS',
       ['timestamp,heartRate,stressLevel,sleepQuality,neuralActivity,dailySteps,sleepDuration',
-        ...metrics.map(m => [m.timestamp, m.heartRate, m.stressLevel, m.sleepQuality, m.neuralActivity, m.dailySteps, m.sleepDuration].join(','))].join('\n'),
+        ...metrics.map((m: (typeof metrics)[number]) => [m.timestamp, m.heartRate, m.stressLevel, m.sleepQuality, m.neuralActivity, m.dailySteps, m.sleepDuration].join(','))].join('\n'),
       '\n# DREAM ANALYSIS',
       ['timestamp,dreamText,symbols,aiAnalysis',
-        ...dreams.map(d => [d.timestamp, escape(d.dreamText), escape((d.symbols as string[] | null)?.join('; ') ?? ''), escape(d.aiAnalysis ?? '')].join(','))].join('\n'),
+        ...dreams.map((d: (typeof dreams)[number]) => [d.timestamp, escape(d.dreamText), escape((d.symbols as string[] | null)?.join('; ') ?? ''), escape(d.aiAnalysis ?? '')].join(','))].join('\n'),
       '\n# EMOTION READINGS',
       ['timestamp,dominantEmotion,stress,happiness,focus,energy,userCorrectedEmotion',
-        ...readings.map(r => [r.timestamp, r.dominantEmotion, r.stress, r.happiness, r.focus, r.energy, r.userCorrectedEmotion ?? ''].join(','))].join('\n'),
+        ...readings.map((r: (typeof readings)[number]) => [r.timestamp, r.dominantEmotion, r.stress, r.happiness, r.focus, r.energy, r.userCorrectedEmotion ?? ''].join(','))].join('\n'),
     ];
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=neural_dream_export_${new Date().toISOString().slice(0, 10)}.csv`);
@@ -817,7 +817,7 @@ async function exportHandler(req: VercelRequest, res: VercelResponse, userId: st
   const metrics = await db.select().from(schema.healthMetrics)
     .where(eq(schema.healthMetrics.userId, userId)).orderBy(desc(schema.healthMetrics.timestamp));
   if (metrics.length === 0) { res.setHeader('Content-Type', 'text/csv'); return res.send('No data available'); }
-  const rows = metrics.map(m => [m.timestamp, m.heartRate, m.stressLevel, m.sleepQuality, m.neuralActivity, m.dailySteps, m.sleepDuration].join(','));
+  const rows = metrics.map((m: (typeof metrics)[number]) => [m.timestamp, m.heartRate, m.stressLevel, m.sleepQuality, m.neuralActivity, m.dailySteps, m.sleepDuration].join(','));
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', `attachment; filename=health_metrics_${new Date().toISOString().slice(0, 10)}.csv`);
   return res.send(['timestamp,heartRate,stressLevel,sleepQuality,neuralActivity,dailySteps,sleepDuration', ...rows].join('\n'));
@@ -836,11 +836,11 @@ async function insightsWeekly(req: VercelRequest, res: VercelResponse) {
   const openai = getOpenAIClient();
   const ctx = {
     dreamCount: dreams.length,
-    dreamSymbols: dreams.flatMap(d => (d.symbols as string[]) || []),
-    avgStress: emotions.length ? emotions.reduce((s, e) => s + e.stress, 0) / emotions.length : null,
-    avgFocus: emotions.length ? emotions.reduce((s, e) => s + e.focus, 0) / emotions.length : null,
-    avgSleepQuality: metrics.length ? metrics.reduce((s, m) => s + m.sleepQuality, 0) / metrics.length : null,
-    dominantEmotions: emotions.slice(0, 10).map(e => e.dominantEmotion),
+    dreamSymbols: dreams.flatMap((d: (typeof dreams)[number]) => (d.symbols as string[]) || []),
+    avgStress: emotions.length ? emotions.reduce((s: number, e: (typeof emotions)[number]) => s + e.stress, 0) / emotions.length : null,
+    avgFocus: emotions.length ? emotions.reduce((s: number, e: (typeof emotions)[number]) => s + e.focus, 0) / emotions.length : null,
+    avgSleepQuality: metrics.length ? metrics.reduce((s: number, m: (typeof metrics)[number]) => s + m.sleepQuality, 0) / metrics.length : null,
+    dominantEmotions: emotions.slice(0, 10).map((e: (typeof emotions)[number]) => e.dominantEmotion),
   };
   const resp = await openai.chat.completions.create({
     model: 'llama-3.3-70b-versatile',
