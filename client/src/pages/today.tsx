@@ -1693,6 +1693,15 @@ export default function Today() {
           </motion.div>
 
           {/* ── This Week mini trend chart ── */}
+          {!weekTrendData.chartRows.some(r => r.stress !== null) && (
+            <motion.div
+              variants={itemVariants}
+              className="rounded-[14px] bg-card border border-border/40 mb-5 p-4 text-center"
+            >
+              <p className="text-[11px] font-semibold text-foreground mb-0.5">This Week</p>
+              <p className="text-[10px] text-muted-foreground">Complete a voice check-in to start your weekly trend</p>
+            </motion.div>
+          )}
           {weekTrendData.chartRows.some(r => r.stress !== null) && (
             <motion.div
               variants={itemVariants}

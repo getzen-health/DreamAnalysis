@@ -222,9 +222,12 @@ function PeriodIcon({ name }: { name: string }) {
 
 /* ---------- main component ---------- */
 
+const TIMELINE_PAGE = 30;
+
 export default function MoodTrends() {
   const userId = getParticipantId();
   const [range, setRange] = useState<TimeRange>("week");
+  const [timelinePage, setTimelinePage] = useState(1);
   const { emotion: currentEmotion } = useCurrentEmotion();
 
   const { data } = useQuery<HistoryEntry[]>({
@@ -385,7 +388,7 @@ export default function MoodTrends() {
         {(["today", "week", "month"] as TimeRange[]).map((r) => (
           <button
             key={r}
-            onClick={() => setRange(r)}
+            onClick={() => { setRange(r); setTimelinePage(1); }}
             className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
               range === r
                 ? "bg-primary text-primary-foreground"
@@ -460,7 +463,7 @@ export default function MoodTrends() {
             Timeline
           </span>
           <div className="space-y-0 max-h-[360px] overflow-y-auto pr-1">
-            {timelineEntries.map((entry, i) => {
+            {timelineEntries.slice(0, timelinePage * TIMELINE_PAGE).map((entry, i) => {
               const em = entry.dominantEmotion.toLowerCase();
               const color = getColor(em);
               return (
@@ -500,6 +503,14 @@ export default function MoodTrends() {
               );
             })}
           </div>
+          {timelineEntries.length > timelinePage * TIMELINE_PAGE && (
+            <button
+              onClick={() => setTimelinePage(p => p + 1)}
+              className="w-full mt-2 py-2 text-xs text-muted-foreground hover:text-foreground border border-border/40 rounded-xl hover:bg-muted/30 transition-colors"
+            >
+              Show {Math.min(TIMELINE_PAGE, timelineEntries.length - timelinePage * TIMELINE_PAGE)} more ({timelineEntries.length - timelinePage * TIMELINE_PAGE} remaining)
+            </button>
+          )}
         </motion.div>
       )}
 
