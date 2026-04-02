@@ -981,11 +981,15 @@ async function notificationsSubscribe(req: VercelRequest, res: VercelResponse) {
   const { endpoint, keys } = req.body;
   const userId = authPayload.userId;
   if (!endpoint || !keys) return badRequest(res, 'endpoint and keys are required');
+  if (typeof endpoint !== 'string' || endpoint.length > 2048) return badRequest(res, 'endpoint must be a string ≤2048 chars');
   try { new URL(endpoint); } catch { return badRequest(res, 'endpoint must be a valid URL'); }
   if (typeof keys !== 'object' || keys === null) return badRequest(res, 'keys must be an object');
-  if (!keys.p256dh || typeof keys.p256dh !== 'string') return badRequest(res, 'keys.p256dh is required');
-  if (!keys.auth || typeof keys.auth !== 'string') return badRequest(res, 'keys.auth is required');
+  if (!keys.p256dh || typeof keys.p256dh !== 'string' || keys.p256dh.length > 256) return badRequest(res, 'keys.p256dh is required (max 256 chars)');
+  if (!keys.auth || typeof keys.auth !== 'string' || keys.auth.length > 128) return badRequest(res, 'keys.auth is required (max 128 chars)');
   const db = getDb();
+  // Rate limit: 10 subscription registrations per user per hour
+  const rlSub = await checkRateLimit(db, `push-subscribe:${userId}`, 10, 60);
+  if (!rlSub.allowed) return tooManyRequests(res, rlSub.retryAfterSeconds!);
   // Deduplicate: return existing record if this endpoint is already registered
   const [existing] = await db.select().from(schema.pushSubscriptions)
     .where(eq(schema.pushSubscriptions.endpoint, endpoint)).limit(1);
@@ -2458,7 +2462,7 @@ async function aiCoachPost(req: VercelRequest, res: VercelResponse) {
     'You are a knowledgeable AI wellness coach specializing in sleep, dreams, and emotional health.',
     context ? `User context: ${String(context).substring(0, 500)}` : '',
     memories && Array.isArray(memories) && memories.length > 0
-      ? `User memories: ${memories.slice(0, 5).join('; ')}` : '',
+      ? `User memories: ${memories.slice(0, 5).map((m: unknown) => typeof m === 'string' ? m.trim().slice(0, 100) : '').filter(Boolean).join('; ')}` : '',
     `Coaching tone: ${safeTone}. Be concise and actionable.`,
   ].filter(Boolean).join(' ');
 
