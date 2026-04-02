@@ -877,6 +877,9 @@ async function insightsWeekly(req: VercelRequest, res: VercelResponse) {
   const userId = req.query.userId as string;
   if (!userId) return error(res, 'userId required', 400);
   const db = getDb();
+  // Rate limit: 10 weekly insight requests per user per hour
+  const rl = await checkRateLimit(db, `insights-weekly:${userId}`, 10, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many insight requests. Please wait before refreshing again.');
   const [dreams, emotions, metrics] = await Promise.all([
     db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)).limit(10),
     db.select().from(schema.emotionReadings).where(eq(schema.emotionReadings.userId, userId)).orderBy(desc(schema.emotionReadings.timestamp)).limit(50),
@@ -891,15 +894,20 @@ async function insightsWeekly(req: VercelRequest, res: VercelResponse) {
     avgSleepQuality: metrics.length ? metrics.reduce((s: number, m: (typeof metrics)[number]) => s + m.sleepQuality, 0) / metrics.length : null,
     dominantEmotions: emotions.slice(0, 10).map((e: (typeof emotions)[number]) => e.dominantEmotion),
   };
-  const resp = await openai.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: 'You are an AI neuroscience wellness advisor. Generate 4 personalized weekly insights. Respond with JSON: {"insights":[{"title":"","description":"","type":"success|warning|info|secondary","icon":"brain|heart|moon|lightbulb"}],"weeklyScore":0,"recommendation":""}' },
-      { role: 'user', content: `Generate weekly insights for: ${JSON.stringify(ctx)}` },
-    ],
-    response_format: { type: 'json_object' },
-  });
-  return success(res, JSON.parse(resp.choices[0].message.content || '{}'));
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are an AI neuroscience wellness advisor. Generate 4 personalized weekly insights. Respond with JSON: {"insights":[{"title":"","description":"","type":"success|warning|info|secondary","icon":"brain|heart|moon|lightbulb"}],"weeklyScore":0,"recommendation":""}' },
+        { role: 'user', content: `Generate weekly insights for: ${JSON.stringify(ctx)}` },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    return success(res, JSON.parse(resp.choices[0].message.content || '{}'));
+  } catch (err) {
+    console.error('[insightsWeekly]', err instanceof Error ? err.message : err);
+    return error(res, 'Failed to generate insights. Please try again.', 500);
+  }
 }
 
 async function notificationsSubscribe(req: VercelRequest, res: VercelResponse) {
