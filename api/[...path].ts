@@ -1677,14 +1677,18 @@ async function studyWithdraw(req: VercelRequest, res: VercelResponse) {
 async function pilotConsent(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { participant_code, age, diet_type, has_apple_watch, consent_text } = req.body;
-  if (!participant_code) return badRequest(res, 'participant_code is required');
+  if (!participant_code || typeof participant_code !== 'string' || participant_code.length > 100) return badRequest(res, 'participant_code is required (max 100 chars)');
   const db = getDb();
+  const rl = await checkRateLimit(db, `pilot-consent:${getClientIp(req)}`, 10, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+  const parsedAge = age != null ? Number(age) : null;
+  if (parsedAge !== null && (!isFinite(parsedAge) || parsedAge < 0 || parsedAge > 120)) return badRequest(res, 'age must be 0–120');
   await db.insert(schema.pilotParticipants).values({
-    participantCode:  String(participant_code),
-    age:              age != null ? Number(age) : null,
-    dietType:         diet_type ?? null,
+    participantCode:  participant_code.trim().slice(0, 100),
+    age:              parsedAge,
+    dietType:         typeof diet_type === 'string' ? diet_type.slice(0, 50) : null,
     hasAppleWatch:    has_apple_watch ? true : false,
-    consentText:      consent_text ?? null,
+    consentText:      typeof consent_text === 'string' ? consent_text.slice(0, 2000) : null,
     consentTimestamp: new Date(),
   }).onConflictDoNothing();
   return success(res, { success: true, participant_code });
@@ -1693,11 +1697,16 @@ async function pilotConsent(req: VercelRequest, res: VercelResponse) {
 async function pilotSessionStart(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { participant_code, block_type } = req.body;
-  if (!participant_code || !block_type) return badRequest(res, 'participant_code and block_type are required');
+  if (!participant_code || typeof participant_code !== 'string') return badRequest(res, 'participant_code is required');
+  if (!block_type || typeof block_type !== 'string') return badRequest(res, 'block_type is required');
+  const ALLOWED_BLOCK_TYPES = ['rest', 'task', 'music', 'meditation', 'breathing', 'control', 'intervention'];
+  if (!ALLOWED_BLOCK_TYPES.includes(block_type)) return badRequest(res, `block_type must be one of: ${ALLOWED_BLOCK_TYPES.join(', ')}`);
   const db = getDb();
+  const rl = await checkRateLimit(db, `pilot-session:${getClientIp(req)}`, 20, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.pilotSessions).values({
-    participantCode:       String(participant_code),
-    blockType:             String(block_type),
+    participantCode:       participant_code.trim().slice(0, 100),
+    blockType:             block_type,
     interventionTriggered: false,
   }).returning({ id: schema.pilotSessions.id });
   return success(res, { session_id: row.id });
