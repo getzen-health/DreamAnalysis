@@ -1858,6 +1858,67 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Research correlation ──────────────────────────────────────────────────────
+
+async function researchCorrelation(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  // Find active participant record
+  const [participant] = await db.select().from(schema.studyParticipants)
+    .where(and(eq(schema.studyParticipants.userId, userId), eq(schema.studyParticipants.status, 'active')))
+    .limit(1);
+  if (!participant) return success(res, []);
+  // Fetch sessions with morning + daytime entries
+  const sessions = await db.select().from(schema.studySessions)
+    .where(eq(schema.studySessions.participantId, participant.id))
+    .orderBy(asc(schema.studySessions.dayNumber)).limit(30);
+  if (sessions.length === 0) return success(res, []);
+  const sessionIds = sessions.map((s) => s.id);
+  const [morningEntries, daytimeEntries, foodLogs] = await Promise.all([
+    db.select().from(schema.studyMorningEntries).where(inArray(schema.studyMorningEntries.sessionId, sessionIds)),
+    db.select().from(schema.studyDaytimeEntries).where(inArray(schema.studyDaytimeEntries.sessionId, sessionIds)),
+    db.select().from(schema.foodLogs).where(eq(schema.foodLogs.userId, userId)).orderBy(desc(schema.foodLogs.loggedAt)).limit(200),
+  ]);
+  const morningBySession = new Map(morningEntries.map((m) => [m.sessionId, m]));
+  const daytimeBySession = new Map(daytimeEntries.map((d) => [d.sessionId, d]));
+  const result = sessions.map((s) => {
+    const morning = morningBySession.get(s.id);
+    const daytime = daytimeBySession.get(s.id);
+    const sessionDate = new Date(s.sessionDate).toISOString().slice(0, 10);
+    const sessionFoods = foodLogs.filter((f) => f.loggedAt && new Date(f.loggedAt).toISOString().slice(0, 10) === sessionDate);
+    return {
+      dayNumber: s.dayNumber,
+      sessionDate,
+      validDay: s.validDay,
+      morning: morning ? {
+        dreamValence: morning.dreamValence ?? null,
+        noRecall: morning.noRecall ?? false,
+        nightmareFlag: morning.nightmareFlag ?? null,
+        dreamSnippet: morning.dreamText ? morning.dreamText.substring(0, 200) : null,
+        welfareScore: morning.currentMoodRating ?? null,
+      } : null,
+      daytime: daytime ? {
+        samValence: daytime.samValence ?? null,
+        samStress: daytime.samStress ?? null,
+        faa: daytime.faa ?? null,
+      } : null,
+      foods: sessionFoods.map((f) => ({
+        id: f.id,
+        summary: f.summary,
+        mealType: f.mealType,
+        totalCalories: f.totalCalories,
+        dominantMacro: f.dominantMacro,
+        glycemicImpact: f.glycemicImpact as string | null ?? null,
+        aiMoodImpact: null,
+        aiDreamRelevance: null,
+        loggedAt: f.loggedAt ? f.loggedAt.toISOString() : '',
+      })),
+    };
+  });
+  return success(res, result);
+}
+
 // ── Body metrics ─────────────────────────────────────────────────────────────
 
 async function bodyMetricsLatest(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -2643,6 +2704,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'sleep-alarm' && s1 && req.method === 'GET') return await sleepAlarm(req, res, s1);
 
     if (s0 === 'ai-coach' && req.method === 'POST') return await aiCoachPost(req, res);
+
+    if (s0 === 'research' && s1 === 'correlation' && segs[2] && req.method === 'GET') {
+      return await researchCorrelation(req, res, segs[2]);
+    }
 
     if (s0 === 'body-metrics' && s1) {
       if (segs[2] === 'latest' && req.method === 'GET') return await bodyMetricsLatest(req, res, s1);
