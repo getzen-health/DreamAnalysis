@@ -2137,11 +2137,12 @@ async function workoutsPost(req: VercelRequest, res: VercelResponse) {
   const db = getDb();
   const rl = await checkRateLimit(db, `workouts-post:${authPayload.userId}`, 30, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+  const parsedStartedAt = startedAt ? new Date(startedAt) : new Date();
   const [row] = await db.insert(schema.workouts).values({
     userId: authPayload.userId,
     name: typeof req.body.name === 'string' ? req.body.name.trim().substring(0, 100) : null,
     workoutType,
-    startedAt: startedAt ? new Date(startedAt) : new Date(),
+    startedAt: isNaN(parsedStartedAt.getTime()) ? new Date() : parsedStartedAt,
     source: 'manual',
     notes: typeof req.body.notes === 'string' ? req.body.notes.trim().substring(0, 500) : null,
   }).returning();
@@ -2168,6 +2169,8 @@ async function workoutsPut(req: VercelRequest, res: VercelResponse, workoutId: s
   if (parsedAvgHr !== null && (!isFinite(parsedAvgHr) || parsedAvgHr < 20 || parsedAvgHr > 300)) return badRequest(res, 'avgHr must be 20–300 bpm');
   const parsedMaxHr = maxHr != null ? Number(maxHr) : null;
   if (parsedMaxHr !== null && (!isFinite(parsedMaxHr) || parsedMaxHr < 20 || parsedMaxHr > 300)) return badRequest(res, 'maxHr must be 20–300 bpm');
+  const rl = await checkRateLimit(db, `workouts-put:${authPayload.userId}`, 60, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   await db.update(schema.workouts).set({
     endedAt: parsedEndedAt,
     durationMin: parsedDuration !== null ? String(parsedDuration) : null,
