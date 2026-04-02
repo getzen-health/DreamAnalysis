@@ -2518,6 +2518,197 @@ async function mealHistoryToggleFavorite(req: VercelRequest, res: VercelResponse
   return success(res, updated);
 }
 
+// ── Dream frames + session complete ──────────────────────────────────────────
+
+async function dreamFramesPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { sessionId, userId, frames } = req.body || {};
+  if (!sessionId || !userId || !Array.isArray(frames) || frames.length === 0) {
+    return badRequest(res, 'sessionId, userId, and frames[] required');
+  }
+  if (frames.length > 500) return badRequest(res, 'frames[] exceeds max batch size of 500');
+  const db = getDb();
+  // Rate limit: 200 frame batches per user per hour
+  const rl = await checkRateLimit(db, `dream-frames:${userId}`, 200, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+
+  const rows = frames.map((f: any) => ({
+    sessionId,
+    userId,
+    dreamIntensity: typeof f.dreamIntensity === 'number' ? Math.min(1, Math.max(0, f.dreamIntensity)) : 0.5,
+    remLikelihood: typeof f.remLikelihood === 'number' ? Math.min(1, Math.max(0, f.remLikelihood)) : 0.5,
+    valence: typeof f.valence === 'number' ? Math.min(1, Math.max(-1, f.valence)) : null,
+    arousal: typeof f.arousal === 'number' ? Math.min(1, Math.max(0, f.arousal)) : null,
+    lucidityScore: typeof f.lucidityScore === 'number' ? Math.min(1, Math.max(0, f.lucidityScore)) : null,
+    lucidityState: typeof f.lucidityState === 'string' ? f.lucidityState : null,
+    thetaActivity: typeof f.thetaActivity === 'number' ? f.thetaActivity : null,
+    betaActivation: typeof f.betaActivation === 'number' ? f.betaActivation : null,
+    eyeMovementIndex: typeof f.eyeMovementIndex === 'number' ? f.eyeMovementIndex : null,
+    dominantEmotion: typeof f.dominantEmotion === 'string' ? f.dominantEmotion : null,
+    timestamp: f.timestamp ? new Date(f.timestamp) : new Date(),
+  }));
+  await db.insert(schema.dreamFrames).values(rows).onConflictDoNothing();
+  return success(res, { saved: rows.length }, 201);
+}
+
+async function dreamSessionComplete(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { sessionId, userId } = req.body || {};
+  if (!sessionId || !userId) return badRequest(res, 'sessionId and userId required');
+  const db = getDb();
+  // Rate limit: 20 session completes per user per hour
+  const rl = await checkRateLimit(db, `dream-session-complete:${userId}`, 20, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many session completions. Please wait.');
+
+  const frames = await db.select().from(schema.dreamFrames)
+    .where(and(eq(schema.dreamFrames.sessionId, sessionId), eq(schema.dreamFrames.userId, userId)))
+    .orderBy(asc(schema.dreamFrames.timestamp))
+    .limit(500);
+
+  if (frames.length === 0) {
+    return success(res, {
+      message: 'No frames found for this session. Start a dream session to record EEG data.',
+    });
+  }
+
+  // Aggregate frame stats
+  const avgIntensity = frames.reduce((s, f) => s + (f.dreamIntensity ?? 0), 0) / frames.length;
+  const peakLucidity = frames.reduce((m, f) => Math.max(m, f.lucidityScore ?? 0), 0);
+  const durationMinutes = frames.length > 1
+    ? (new Date(frames[frames.length - 1].timestamp).getTime() - new Date(frames[0].timestamp).getTime()) / 60000
+    : 0;
+
+  // Determine lucidity state
+  let peakLucidityState = 'non_lucid';
+  if (peakLucidity > 0.7) peakLucidityState = 'controlled';
+  else if (peakLucidity > 0.5) peakLucidityState = 'lucid';
+  else if (peakLucidity > 0.3) peakLucidityState = 'pre_lucid';
+
+  const emotionCounts = new Map<string, number>();
+  for (const f of frames) {
+    if (f.dominantEmotion) emotionCounts.set(f.dominantEmotion, (emotionCounts.get(f.dominantEmotion) ?? 0) + 1);
+  }
+  const topEmotion = emotionCounts.size > 0
+    ? [...emotionCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+    : 'neutral';
+
+  // Generate AI narrative
+  const openai = getOpenAIClient();
+  let narrative = '';
+  let primaryTheme = 'neutral';
+  let keyInsight = '';
+  let morningMoodPrediction = 'neutral';
+  let eegSummary = '';
+
+  try {
+    const summary = `Session: ${frames.length} frames over ${Math.round(durationMinutes)} minutes. ` +
+      `Avg dream intensity: ${avgIntensity.toFixed(2)}. Peak lucidity: ${peakLucidity.toFixed(2)} (${peakLucidityState}). ` +
+      `Dominant emotion: ${topEmotion}.`;
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are a dream analysis expert. Respond with JSON: {"narrative":"...","primaryTheme":"...","keyInsight":"...","morningMoodPrediction":"...","eegSummary":"..."}. Keep each field under 100 words.' },
+        { role: 'user', content: `Analyze this dream session: ${summary}` },
+      ],
+      max_tokens: 400,
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    });
+    const parsed = JSON.parse(resp.choices?.[0]?.message?.content ?? '{}');
+    narrative = parsed.narrative ?? '';
+    primaryTheme = parsed.primaryTheme ?? 'neutral';
+    keyInsight = parsed.keyInsight ?? '';
+    morningMoodPrediction = parsed.morningMoodPrediction ?? 'neutral';
+    eegSummary = parsed.eegSummary ?? '';
+  } catch {
+    narrative = `Your ${Math.round(durationMinutes)}-minute dream session showed ${avgIntensity > 0.6 ? 'vivid' : 'moderate'} dream activity with ${topEmotion} as the dominant emotion.`;
+    primaryTheme = topEmotion;
+    eegSummary = `Peak lucidity: ${(peakLucidity * 100).toFixed(0)}% (${peakLucidityState}).`;
+  }
+
+  return success(res, {
+    narrative,
+    primaryTheme,
+    keyInsight,
+    morningMoodPrediction,
+    eegSummary,
+    episode: { durationMinutes: Math.round(durationMinutes), peakIntensity: Math.round(avgIntensity * 100) / 100, peakLucidityState },
+  });
+}
+
+// ── Morning briefing (AI) ─────────────────────────────────────────────────────
+
+async function morningBriefing(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const db = getDb();
+  // Rate limit: 10 briefings per user per hour
+  const rl = await checkRateLimit(db, `morning-briefing:${authPayload.userId}`, 10, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+
+  const { sleepData, morningHrv, emotionSummary, patternSummaries, yesterdaySummary, dreamContext } = req.body || {};
+
+  const openai = getOpenAIClient();
+  try {
+    const context = [
+      sleepData ? `Sleep: ${sleepData.totalHours ?? '?'}h total, efficiency ${sleepData.efficiency ?? '?'}%` : '',
+      morningHrv ? `Morning HRV: ${morningHrv}ms` : '',
+      emotionSummary ? `Yesterday emotions: ${emotionSummary.dominantLabel} dominant (stress ${(emotionSummary.avgStress * 100).toFixed(0)}%, focus ${(emotionSummary.avgFocus * 100).toFixed(0)}%)` : '',
+      yesterdaySummary ? `Yesterday: ${yesterdaySummary}` : '',
+      dreamContext?.keyInsight ? `Dream insight: ${dreamContext.keyInsight}` : '',
+    ].filter(Boolean).join('. ');
+
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: 'You are a personal brain health coach. Given the user\'s overnight data, generate a morning briefing. Respond with JSON: {"stateSummary":"1-2 sentence state overview","actions":["action1","action2","action3"],"forecast":{"label":"positive|neutral|challenging","probability":0.7,"reason":"brief reason"}}' },
+        { role: 'user', content: context || 'No health data available. Generate a general morning briefing.' },
+      ],
+      max_tokens: 300,
+      temperature: 0.7,
+      response_format: { type: 'json_object' },
+    });
+    const parsed = JSON.parse(resp.choices?.[0]?.message?.content ?? '{}');
+    return success(res, {
+      stateSummary: parsed.stateSummary ?? 'Good morning! Your brain is ready for the day.',
+      actions: parsed.actions ?? ['Start with deep breathing', 'Review your goals', 'Hydrate'],
+      forecast: parsed.forecast ?? { label: 'neutral', probability: 0.6, reason: 'Baseline conditions' },
+    });
+  } catch {
+    return success(res, {
+      stateSummary: 'Good morning! Start your day with intention.',
+      actions: ['5 minutes of deep breathing', 'Set 3 priorities for today', 'Drink a glass of water'],
+      forecast: { label: 'neutral', probability: 0.6, reason: 'Data unavailable' },
+    });
+  }
+}
+
+// ── Voice emotion sync ────────────────────────────────────────────────────────
+
+async function voiceEmotionPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { userId, emotion, valence, arousal, confidence, probabilities, timestamp } = req.body || {};
+  if (!userId || !emotion) return badRequest(res, 'userId and emotion required');
+  const db = getDb();
+  // Rate limit: 100 per IP per hour (supports offline sync)
+  const ip = getClientIp(req);
+  const rl = await checkRateLimit(db, `voice-emotion:${ip}`, 100, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
+  const [row] = await db.insert(schema.userReadings).values({
+    userId,
+    source: 'voice',
+    emotion: String(emotion).slice(0, 50),
+    valence: typeof valence === 'number' ? valence : null,
+    arousal: typeof arousal === 'number' ? arousal : null,
+    stress: null,
+    confidence: typeof confidence === 'number' ? confidence : null,
+    modelType: 'voice',
+    createdAt: timestamp ? new Date(timestamp) : new Date(),
+  }).returning();
+  return success(res, row, 201);
+}
+
 // ── Community mood feed ───────────────────────────────────────────────────────
 
 async function communityMoodFeed(req: VercelRequest, res: VercelResponse) {
@@ -3426,6 +3617,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'exercise-history' && s1 && segs[2] === 'prs' && req.method === 'GET') {
       return await exerciseHistoryPrs(req, res, s1);
     }
+
+    if (s0 === 'dream-frames' && req.method === 'POST') return await dreamFramesPost(req, res);
+    if (s0 === 'dream-session-complete' && req.method === 'POST') return await dreamSessionComplete(req, res);
+    if (s0 === 'morning-briefing' && req.method === 'POST') return await morningBriefing(req, res);
+    if (s0 === 'voice-emotion' && req.method === 'POST') return await voiceEmotionPost(req, res);
+    // /api/food-log (offline sync alias for /api/food/log)
+    if (s0 === 'food-log' && req.method === 'POST') return await foodLog(req, res);
 
     if (s0 === 'community') {
       if (s1 === 'mood-feed' && req.method === 'GET') return await communityMoodFeed(req, res);
