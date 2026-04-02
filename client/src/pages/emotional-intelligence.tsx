@@ -36,6 +36,7 @@ import {
   getMultimodalStatus,
 } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const userId = getParticipantId();
 
@@ -241,7 +242,18 @@ export default function EmotionalIntelligencePage() {
       </p>
 
       {loading && (
-        <p className="text-xs text-zinc-500 animate-pulse">Loading EIQ data…</p>
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <Skeleton className="w-36 h-36 rounded-full" />
+            <div className="flex-1 space-y-3">
+              <Skeleton className="h-4 w-24 rounded" />
+              <Skeleton className="h-3 w-32 rounded" />
+              <Skeleton className="h-3 w-28 rounded" />
+            </div>
+          </div>
+          <Skeleton className="h-24 w-full rounded-xl" />
+          <Skeleton className="h-20 w-full rounded-xl" />
+        </div>
       )}
 
       {!loading && !latest && (
