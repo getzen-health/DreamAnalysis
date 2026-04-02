@@ -329,8 +329,11 @@ async function authResetPassword(req: VercelRequest, res: VercelResponse) {
 
 async function dreamsCreate(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { dreamText, userId, tags, sleepQuality, sleepDuration } = req.body;
-  if (!dreamText || !userId) return badRequest(res, 'dreamText and userId are required');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { dreamText, tags, sleepQuality, sleepDuration } = req.body;
+  const userId = authPayload.userId;
+  if (!dreamText) return badRequest(res, 'dreamText is required');
   if (typeof dreamText !== 'string' || dreamText.length > 10000) return badRequest(res, 'dreamText exceeds max length (10000 chars)');
   const db = getDb();
   const rl = await checkRateLimit(db, `dreams-create:${userId}`, 20, 60);
@@ -372,6 +375,7 @@ async function dreamsList(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const userId = req.query.userId as string;
   if (!userId) return error(res, 'userId required', 400);
+  if (!requireOwner(req, res, userId)) return;
   const page = Math.max(parseInt(req.query.page as string) || 1, 1);
   const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 20, 1), 100);
   const db = getDb();
@@ -385,6 +389,7 @@ async function dreamsAnalytics(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
   const userId = req.query.userId as string;
   if (!userId) return error(res, 'userId required', 400);
+  if (!requireOwner(req, res, userId)) return;
   const db = getDb();
   const [dreams, symbols] = await Promise.all([
     db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.userId, userId)).orderBy(desc(schema.dreamAnalysis.timestamp)).limit(1000),
@@ -408,16 +413,17 @@ async function dreamsAnalytics(req: VercelRequest, res: VercelResponse) {
 
 async function dreamsGenerateImage(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { dreamId, userId } = req.body;
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { dreamId } = req.body;
   if (!dreamId) return badRequest(res, 'dreamId required');
   const db = getDb();
   // Rate limit: 10 image generations per user per hour
-  if (userId) {
-    const rl = await checkRateLimit(db, `dream-image:${userId}`, 10, 60);
-    if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many image generation requests. Please wait before trying again.');
-  }
+  const rl = await checkRateLimit(db, `dream-image:${authPayload.userId}`, 10, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many image generation requests. Please wait before trying again.');
   const [dream] = await db.select().from(schema.dreamAnalysis).where(eq(schema.dreamAnalysis.id, dreamId));
   if (!dream) return error(res, 'Dream not found', 404);
+  if (dream.userId !== authPayload.userId) return error(res, 'Forbidden', 403);
   // Pollinations AI — free, no API key, returns a stable URL for the prompt
   const prompt = `Surreal dreamlike digital art: ${dream.dreamText.substring(0, 400)}. Style: ethereal, mystical, glowing colors, cosmic atmosphere. No text.`;
   const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Date.now()}`;
@@ -427,8 +433,11 @@ async function dreamsGenerateImage(req: VercelRequest, res: VercelResponse) {
 
 async function dreamAnalysisPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { dreamText, userId } = req.body;
-  if (!dreamText || !userId) return badRequest(res, 'Missing dreamText or userId');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { dreamText } = req.body;
+  const userId = authPayload.userId;
+  if (!dreamText) return badRequest(res, 'Missing dreamText');
   const db = getDb();
   const rl = await checkRateLimit(db, `dream-analysis:${userId}`, 20, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many dream analysis requests. Please wait before trying again.');
@@ -552,10 +561,12 @@ async function dreamAnalysisMultiPassPost(req: VercelRequest, res: VercelRespons
 
 async function aiChatPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { message, userId } = req.body;
-  if (!message || !userId) return badRequest(res, 'Missing message or userId');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { message } = req.body;
+  const userId = authPayload.userId;
+  if (!message) return badRequest(res, 'Missing message');
   if (typeof message !== 'string' || message.length > 2000) return badRequest(res, 'Message must be a string of ≤2000 characters');
-  if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   const db = getDb();
   // Rate limit: 40 AI chat messages per user per hour
   const rlChat = await checkRateLimit(db, `ai-chat:${userId}`, 40, 60);
@@ -930,10 +941,12 @@ async function insightsWeekly(req: VercelRequest, res: VercelResponse) {
 
 async function notificationsSubscribe(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { userId, endpoint, keys } = req.body;
-  if (!userId || !endpoint || !keys) return badRequest(res, 'userId, endpoint, and keys are required');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { endpoint, keys } = req.body;
+  const userId = authPayload.userId;
+  if (!endpoint || !keys) return badRequest(res, 'endpoint and keys are required');
   try { new URL(endpoint); } catch { return badRequest(res, 'endpoint must be a valid URL'); }
-  if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   const db = getDb();
   // Deduplicate: return existing record if this endpoint is already registered
   const [existing] = await db.select().from(schema.pushSubscriptions)
@@ -1890,8 +1903,10 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
 
 async function irtSessionPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { userId, originalDreamText, rewrittenEnding, rehearsalNote } = req.body;
-  if (!userId || typeof userId !== 'string') return badRequest(res, 'userId required');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { originalDreamText, rewrittenEnding, rehearsalNote } = req.body;
+  const userId = authPayload.userId;
   if (!originalDreamText || typeof originalDreamText !== 'string') return badRequest(res, 'originalDreamText required');
   if (!rewrittenEnding || typeof rewrittenEnding !== 'string') return badRequest(res, 'rewrittenEnding required');
   if (originalDreamText.length > 10000 || rewrittenEnding.length > 10000) return badRequest(res, 'Text too long (max 10000 chars)');
@@ -2361,8 +2376,10 @@ async function sleepAlarm(req: VercelRequest, res: VercelResponse, userId: strin
 
 async function realityTestPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { userId, result, notes } = req.body;
-  if (!userId || typeof userId !== 'string') return badRequest(res, 'userId required');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { result, notes } = req.body;
+  const userId = authPayload.userId;
   const validResults = ['dreaming', 'awake', 'unsure'];
   if (!result || !validResults.includes(result)) return badRequest(res, 'result must be dreaming, awake, or unsure');
   const db = getDb();
@@ -2522,9 +2539,12 @@ async function mealHistoryToggleFavorite(req: VercelRequest, res: VercelResponse
 
 async function dreamFramesPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { sessionId, userId, frames } = req.body || {};
-  if (!sessionId || !userId || !Array.isArray(frames) || frames.length === 0) {
-    return badRequest(res, 'sessionId, userId, and frames[] required');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { sessionId, frames } = req.body || {};
+  const userId = authPayload.userId;
+  if (!sessionId || !Array.isArray(frames) || frames.length === 0) {
+    return badRequest(res, 'sessionId and frames[] required');
   }
   if (frames.length > 500) return badRequest(res, 'frames[] exceeds max batch size of 500');
   const db = getDb();
@@ -2553,8 +2573,11 @@ async function dreamFramesPost(req: VercelRequest, res: VercelResponse) {
 
 async function dreamSessionComplete(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { sessionId, userId } = req.body || {};
-  if (!sessionId || !userId) return badRequest(res, 'sessionId and userId required');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { sessionId } = req.body || {};
+  const userId = authPayload.userId;
+  if (!sessionId) return badRequest(res, 'sessionId required');
   const db = getDb();
   // Rate limit: 20 session completes per user per hour
   const rl = await checkRateLimit(db, `dream-session-complete:${userId}`, 20, 60);
@@ -2688,12 +2711,14 @@ async function morningBriefing(req: VercelRequest, res: VercelResponse) {
 
 async function voiceEmotionPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { userId, emotion, valence, arousal, confidence, probabilities, timestamp } = req.body || {};
-  if (!userId || !emotion) return badRequest(res, 'userId and emotion required');
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { emotion, valence, arousal, confidence, probabilities, timestamp } = req.body || {};
+  const userId = authPayload.userId;
+  if (!emotion) return badRequest(res, 'emotion required');
   const db = getDb();
-  // Rate limit: 100 per IP per hour (supports offline sync)
-  const ip = getClientIp(req);
-  const rl = await checkRateLimit(db, `voice-emotion:${ip}`, 100, 60);
+  // Rate limit: 100 per user per hour
+  const rl = await checkRateLimit(db, `voice-emotion:${userId}`, 100, 60);
   if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.userReadings).values({
     userId,
