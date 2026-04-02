@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTheme } from "@/hooks/use-theme";
 import { getParticipantId } from "@/lib/participant";
 import { useQuery } from "@tanstack/react-query";
-import { resolveUrl } from "@/lib/queryClient";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import {
   Flame, Calendar, Trophy, BarChart3, Heart, Brain, Palette,

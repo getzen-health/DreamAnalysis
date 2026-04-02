@@ -10,7 +10,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -60,10 +60,7 @@ export function StreakCard({ userId }: StreakCardProps) {
   const { data, isLoading, isError } = useQuery<StreakStatus>({
     queryKey: ["streak-status", userId],
     queryFn: async () => {
-      const res = await fetch(
-        resolveUrl(`/api/streaks/${encodeURIComponent(userId)}`),
-        { headers: { "Content-Type": "application/json" } }
-      );
+      const res = await apiRequest("GET", `/api/streaks/${encodeURIComponent(userId)}`);
       if (!res.ok) throw new Error(`Streak status error: ${res.status}`);
       const raw = await res.json();
       // Map Express response fields to the StreakStatus interface

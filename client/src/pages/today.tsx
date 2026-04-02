@@ -6,7 +6,7 @@ import {
 } from "recharts";
 import { motion } from "framer-motion";
 import { pageTransition } from "@/lib/animations";
-import { resolveUrl, apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { Sparkles, Moon, Heart, Footprints, UtensilsCrossed, Share2, Music, Wind, CloudMoon, Dumbbell, TreePine, AlertTriangle, Smile, Minus, Frown, PenLine, TrendingUp, TrendingDown, Check, Pencil, Clock, Brain, Mic, Activity } from "lucide-react";
@@ -758,7 +758,7 @@ export default function Today() {
     queryKey: ["/api/mood", userId],
     queryFn: async () => {
       try {
-        const res = await fetch(resolveUrl(`/api/mood/${userId}?days=1`));
+        const res = await apiRequest("GET", `/api/mood/${userId}?days=1`);
         if (res.ok) return await res.json();
       } catch { /* API unavailable */ }
       return [];
@@ -791,7 +791,7 @@ export default function Today() {
   // Fetch inner score history for predictive alerts (score-declining detection)
   const { data: innerScoreHistory } = useQuery({
     queryKey: ["inner-score-history", userId],
-    queryFn: () => fetch(resolveUrl(`/api/inner-score/${userId}/history?days=7`)).then(r => r.json()),
+    queryFn: () => apiRequest("GET", `/api/inner-score/${userId}/history?days=7`).then(r => r.json()),
     enabled: !!userId,
     staleTime: 5 * 60_000,
   });
@@ -959,11 +959,7 @@ export default function Today() {
     // Update per-modality accuracy tracking (prediction was correct)
     updateModalityAccuracy("voice", true);
     if (checkin?.emotion) {
-      fetch(resolveUrl(`/api/readings/${userId}/correct-latest`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correctedEmotion: checkin.emotion }),
-      }).catch(() => {});
+      apiRequest("PATCH", `/api/readings/${userId}/correct-latest`, { correctedEmotion: checkin.emotion }).catch(() => {});
       // Persist confirmed emotion to Supabase (prediction matched reality)
       recordCorrection({
         userId,
@@ -985,11 +981,7 @@ export default function Today() {
     setEmotionFeedback("corrected");
     // Update per-modality accuracy tracking
     updateModalityAccuracy("voice", emotion === checkin?.emotion);
-    fetch(resolveUrl(`/api/readings/${userId}/correct-latest`), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correctedEmotion: emotion }),
-    }).catch((err) => console.error("Failed to save emotion correction:", err));
+    apiRequest("PATCH", `/api/readings/${userId}/correct-latest`, { correctedEmotion: emotion }).catch((err) => console.error("Failed to save emotion correction:", err));
     // Persist correction to Supabase + ML backend with voice feature vectors
     recordCorrection({
       userId,
@@ -1224,11 +1216,7 @@ export default function Today() {
       const today = new Date().toISOString().slice(0, 10);
       if (innerScorePostedRef.current === today) return;
       innerScorePostedRef.current = today;
-      fetch(resolveUrl(`/api/inner-score/${userId}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ score: innerScore.score, tier: innerScore.tier, factors: innerScore.factors, narrative: innerScore.narrative }),
-      }).catch(() => {});
+      apiRequest("POST", `/api/inner-score/${userId}`, { score: innerScore.score, tier: innerScore.tier, factors: innerScore.factors, narrative: innerScore.narrative }).catch(() => {});
     }
   }, [innerScore.score, innerScore.tier, userId]);
 

@@ -13,7 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Heart, Activity, Moon, Footprints } from "lucide-react";
 import { estimateHealthEmotion, type HealthEmotionResult } from "@/lib/ml-api";
 import type { BiometricPayload } from "@/lib/health-sync";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -159,26 +159,22 @@ export function HealthEmotionCard({ payload, lastSyncAt }: HealthEmotionCardProp
     lastSavedRef.current = key;
 
     // Persist to user_readings for model retraining (fire-and-forget)
-    fetch(resolveUrl("/api/readings"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: getParticipantId(),
-        source: "health",
-        emotion: data.emotion,
-        valence: data.valence ?? null,
-        arousal: data.arousal ?? null,
-        stress: data.stress ?? null,
-        confidence: data.confidence,
-        modelType: "health-heuristic",
-        features: {
-          hr_bpm: hr,
-          hrv_rmssd_ms: hrv ?? null,
-          respiratory_rate: resp ?? null,
-          steps_last_hour: stepsLastHour ?? null,
-          sleep_hours: sleep ?? null,
-        },
-      }),
+    apiRequest("POST", "/api/readings", {
+      userId: getParticipantId(),
+      source: "health",
+      emotion: data.emotion,
+      valence: data.valence ?? null,
+      arousal: data.arousal ?? null,
+      stress: data.stress ?? null,
+      confidence: data.confidence,
+      modelType: "health-heuristic",
+      features: {
+        hr_bpm: hr,
+        hrv_rmssd_ms: hrv ?? null,
+        respiratory_rate: resp ?? null,
+        steps_last_hour: stepsLastHour ?? null,
+        sleep_hours: sleep ?? null,
+      },
     }).catch(() => {
       // Silent — storage failure is not user-facing
     });
