@@ -1739,7 +1739,15 @@ async function pilotSessionComplete(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { session_id, pre_eeg_json, post_eeg_json, eeg_features_json, survey_json, intervention_triggered } = req.body;
   if (session_id == null) return badRequest(res, 'session_id is required');
+  // Enforce JSON field size caps to prevent oversized payloads in the DB
+  const MAX_JSON_BYTES = 65536; // 64 KB per field
+  for (const [name, val] of [['pre_eeg_json', pre_eeg_json], ['post_eeg_json', post_eeg_json], ['eeg_features_json', eeg_features_json], ['survey_json', survey_json]] as const) {
+    if (val != null && JSON.stringify(val).length > MAX_JSON_BYTES) return badRequest(res, `${name} exceeds 64 KB limit`);
+  }
   const db = getDb();
+  // Rate limit: 20 completions per IP per hour
+  const rl = await checkRateLimit(db, `pilot-complete:${getClientIp(req)}`, 20, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   await db.update(schema.pilotSessions)
     .set({
       preEegJson:            pre_eeg_json ?? null,
@@ -1863,7 +1871,15 @@ async function pilotAdminExportCsv(req: VercelRequest, res: VercelResponse) {
 async function pilotSessionCheckpoint(req: VercelRequest, res: VercelResponse, sessionId: number) {
   if (req.method !== 'PATCH') return methodNotAllowed(res, ['PATCH']);
   const { pre_eeg_json, post_eeg_json, eeg_features_json, intervention_triggered, partial, phase_log } = req.body;
+  // Enforce JSON field size caps
+  const MAX_JSON_BYTES = 65536; // 64 KB per field
+  for (const [name, val] of [['pre_eeg_json', pre_eeg_json], ['post_eeg_json', post_eeg_json], ['eeg_features_json', eeg_features_json], ['phase_log', phase_log]] as const) {
+    if (val != null && JSON.stringify(val).length > MAX_JSON_BYTES) return badRequest(res, `${name} exceeds 64 KB limit`);
+  }
   const db = getDb();
+  // Rate limit: 60 checkpoints per IP per hour
+  const rl = await checkRateLimit(db, `pilot-checkpoint:${getClientIp(req)}`, 60, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   await db.update(schema.pilotSessions)
     .set({
       ...(pre_eeg_json !== undefined      && { preEegJson: pre_eeg_json }),
