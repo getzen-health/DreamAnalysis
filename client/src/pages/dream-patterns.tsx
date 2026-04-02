@@ -21,7 +21,7 @@ import { Moon, TrendingUp, Brain, Activity, Sparkles, Radio, Share2 } from "luci
 import { useDevice } from "@/hooks/use-device";
 import { listSessions, type SessionSummary } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { DreamFusionCard } from "@/components/dream-fusion-card";
 import { fuseDreamBiometrics, type DreamEntry, type OvernightBiometrics } from "@/lib/dream-biometric-fusion";
 import { DreamPatternsCard } from "@/components/dream-patterns-card";
@@ -178,8 +178,7 @@ export default function DreamPatterns() {
   const { data: dreamPatterns, isLoading: patternsLoading } = useQuery<DreamPatternData>({
     queryKey: ["dream-patterns", userId, patternDays],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/dream-patterns/${userId}?days=${patternDays}`));
-      if (!res.ok) throw new Error("Failed to fetch dream patterns");
+      const res = await apiRequest("GET", `/api/dream-patterns/${userId}?days=${patternDays}`);
       return res.json();
     },
     staleTime: 5 * 60 * 1000,
@@ -190,9 +189,10 @@ export default function DreamPatterns() {
   const { data: dreamSymbols = [] } = useQuery<DreamSymbol[]>({
     queryKey: ["dream-symbols", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/dream-symbols/${userId}`));
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        const res = await apiRequest("GET", `/api/dream-symbols/${userId}`);
+        return res.json();
+      } catch { return []; }
     },
     staleTime: 10 * 60 * 1000,
     retry: false,
@@ -202,8 +202,7 @@ export default function DreamPatterns() {
   const { data: dreamQualityTrend } = useQuery<DreamQualityTrend>({
     queryKey: ["dream-quality-trend", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/dream-quality-trend/${userId}?days=14`));
-      if (!res.ok) throw new Error("Failed to fetch dream quality trend");
+      const res = await apiRequest("GET", `/api/dream-quality-trend/${userId}?days=14`);
       return res.json();
     },
     staleTime: 10 * 60 * 1000,
@@ -214,8 +213,7 @@ export default function DreamPatterns() {
   const { data: nightmareRecurrence } = useQuery<NightmareRecurrenceData>({
     queryKey: ["nightmare-recurrence", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/nightmare-recurrence/${userId}`));
-      if (!res.ok) throw new Error("Failed to fetch nightmare recurrence");
+      const res = await apiRequest("GET", `/api/nightmare-recurrence/${userId}`);
       return res.json();
     },
     staleTime: 10 * 60 * 1000,
@@ -226,9 +224,10 @@ export default function DreamPatterns() {
   const { data: latestDreamArr } = useQuery<{ dreamText?: string; emotions?: Array<{emotion: string; intensity: number} | string>; lucidityScore?: number; sleepQuality?: number; timestamp?: string }[]>({
     queryKey: ["dream-analysis", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/dream-analysis/${userId}`));
-      if (!res.ok) return [];
-      return res.json();
+      try {
+        const res = await apiRequest("GET", `/api/dream-analysis/${userId}`);
+        return res.json();
+      } catch { return []; }
     },
     staleTime: 5 * 60 * 1000,
     retry: false,
@@ -238,10 +237,11 @@ export default function DreamPatterns() {
   const { data: latestPayload } = useQuery<Record<string, number | null>>({
     queryKey: ["health-latest", userId],
     queryFn: async () => {
-      const res = await fetch(resolveUrl(`/api/health-samples/${userId}?limit=1`));
-      if (!res.ok) return {};
-      const rows = await res.json();
-      return rows?.[0] ?? {};
+      try {
+        const res = await apiRequest("GET", `/api/health-samples/${userId}?limit=1`);
+        const rows = await res.json();
+        return rows?.[0] ?? {};
+      } catch { return {}; }
     },
     staleTime: 5 * 60 * 1000,
     retry: false,
