@@ -57,6 +57,7 @@ import { scrypt, randomBytes, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { eq, desc, asc, and, gte, lt, sql, isNull } from 'drizzle-orm';
 
+import { z } from 'zod';
 import { success, error, badRequest, methodNotAllowed, unauthorized } from './_lib/response.js';
 import { generateToken, setAuthCookie, clearAuthCookie, requireAuth, requireOwner, requireAdmin } from './_lib/auth.js';
 import { checkRateLimit, getClientIp, tooManyRequests } from './_lib/rate-limit.js';
@@ -1212,55 +1213,76 @@ async function brainAtThisTimeYesterday(req: VercelRequest, res: VercelResponse,
   });
 }
 
+const emotionReadingSchema = z.object({
+  userId: z.string().min(1),
+  sessionId: z.string().nullable().optional(),
+  stress: z.number().min(0).max(1).default(0),
+  happiness: z.number().min(0).max(1).default(0),
+  focus: z.number().min(0).max(1).default(0),
+  energy: z.number().min(0).max(1).default(0),
+  dominantEmotion: z.string().max(50).default('neutral'),
+  valence: z.number().min(-1).max(1).nullable().optional(),
+  arousal: z.number().min(0).max(1).nullable().optional(),
+});
+
 async function emotionReadingsBatch(req: VercelRequest, res: VercelResponse) {
-  const body = await parseRequestBody(req) as any;
-  const readings = body?.readings;
-  if (!Array.isArray(readings) || readings.length === 0) return badRequest(res, 'readings array required');
+  const body = await parseRequestBody(req) as unknown;
+  const parsed = z.object({ readings: z.array(emotionReadingSchema).min(1).max(50) }).safeParse(body);
+  if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid readings');
   const db = getDb();
-  for (const r of readings.slice(0, 50)) {
+  for (const r of parsed.data.readings) {
     await db.insert(schema.emotionReadings).values({
-      userId: r.userId,
-      sessionId: r.sessionId ?? null,
-      stress: r.stress ?? 0,
-      happiness: r.happiness ?? 0,
-      focus: r.focus ?? 0,
-      energy: r.energy ?? 0,
-      dominantEmotion: r.dominantEmotion ?? 'neutral',
-      valence: r.valence ?? null,
-      arousal: r.arousal ?? null,
+      userId: r.userId, sessionId: r.sessionId ?? null,
+      stress: r.stress, happiness: r.happiness, focus: r.focus, energy: r.energy,
+      dominantEmotion: r.dominantEmotion, valence: r.valence ?? null, arousal: r.arousal ?? null,
     }).catch(() => {});
   }
-  return success(res, { saved: readings.length }, 201);
+  return success(res, { saved: parsed.data.readings.length }, 201);
 }
 
+const userReadingSchema = z.object({
+  userId: z.string().min(1),
+  source: z.enum(['voice', 'eeg', 'health', 'manual']).default('voice'),
+  emotion: z.string().max(50).default('neutral'),
+  valence: z.number().min(-1).max(1).nullable().optional(),
+  arousal: z.number().min(0).max(1).nullable().optional(),
+  stress: z.number().min(0).max(1).nullable().optional(),
+  confidence: z.number().min(0).max(1).nullable().optional(),
+  modelType: z.string().max(50).default('voice'),
+});
+
 async function userReadingsPost(req: VercelRequest, res: VercelResponse) {
-  const body = await parseRequestBody(req) as any;
-  if (!body?.userId) return badRequest(res, 'userId required');
+  const body = await parseRequestBody(req) as unknown;
+  const parsed = userReadingSchema.safeParse(body);
+  if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid reading data');
   const db = getDb();
   const [row] = await db.insert(schema.userReadings).values({
-    userId: body.userId,
-    source: body.source ?? 'voice',
-    emotion: body.emotion ?? 'neutral',
-    valence: body.valence ?? null,
-    arousal: body.arousal ?? null,
-    stress: body.stress ?? null,
-    confidence: body.confidence ?? null,
-    modelType: body.modelType ?? 'voice',
+    userId: parsed.data.userId, source: parsed.data.source, emotion: parsed.data.emotion,
+    valence: parsed.data.valence ?? null, arousal: parsed.data.arousal ?? null,
+    stress: parsed.data.stress ?? null, confidence: parsed.data.confidence ?? null,
+    modelType: parsed.data.modelType,
   }).returning();
   return success(res, row, 201);
 }
 
+const foodLogSchema = z.object({
+  userId: z.string().min(1),
+  mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack', 'meal']).default('meal'),
+  summary: z.string().max(500).nullable().optional(),
+  totalCalories: z.number().min(0).max(10000).nullable().optional(),
+  dominantMacro: z.enum(['protein', 'carbs', 'fat', 'balanced']).nullable().optional(),
+  foodItems: z.array(z.unknown()).nullable().optional(),
+});
+
 async function foodLog(req: VercelRequest, res: VercelResponse) {
-  const body = await parseRequestBody(req) as any;
-  if (!body?.userId) return badRequest(res, 'userId required');
+  const body = await parseRequestBody(req) as unknown;
+  const parsed = foodLogSchema.safeParse(body);
+  if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid food log data');
   const db = getDb();
   const [row] = await db.insert(schema.foodLogs).values({
-    userId: body.userId,
-    mealType: body.mealType ?? 'meal',
-    summary: body.summary ?? null,
-    totalCalories: body.totalCalories ?? null,
-    dominantMacro: body.dominantMacro ?? null,
-    foodItems: body.foodItems ?? null,
+    userId: parsed.data.userId, mealType: parsed.data.mealType,
+    summary: parsed.data.summary ?? null, totalCalories: parsed.data.totalCalories ?? null,
+    dominantMacro: parsed.data.dominantMacro ?? null, foodItems: parsed.data.foodItems ?? null,
   }).returning();
   return success(res, row, 201);
 }
@@ -2049,11 +2071,19 @@ async function innerScoreGet(req: VercelRequest, res: VercelResponse, userId: st
   return success(res, { score: cached.score, label, tier: cached.tier, confidence, factors: cached.factors, narrative: cached.narrative, delta, trend });
 }
 
+const innerScorePostSchema = z.object({
+  score: z.number().min(0).max(100),
+  tier: z.enum(['eeg_health_voice', 'health_voice', 'voice_only']),
+  factors: z.record(z.unknown()).optional(),
+  narrative: z.string().max(1000).nullable().optional(),
+});
+
 async function innerScorePost(req: VercelRequest, res: VercelResponse, userId: string) {
-  const body = await parseRequestBody(req) as any;
-  if (body?.score == null || !body?.tier) return badRequest(res, 'score and tier required');
+  const body = await parseRequestBody(req) as unknown;
+  const parsed = innerScorePostSchema.safeParse(body);
+  if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid inner score data');
   const db = getDb();
-  const [row] = await db.insert(schema.innerScores).values({ userId, score: body.score, tier: body.tier, factors: body.factors ?? {}, narrative: body.narrative ?? null }).returning();
+  const [row] = await db.insert(schema.innerScores).values({ userId, score: parsed.data.score, tier: parsed.data.tier, factors: parsed.data.factors ?? {}, narrative: parsed.data.narrative ?? null }).returning();
   return success(res, row, 201);
 }
 
@@ -2094,7 +2124,7 @@ async function streaksCheckin(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const authPayload = requireAuth(req, res);
   if (!authPayload) return;
-  const body = await parseRequestBody(req) as any;
+  await parseRequestBody(req); // consume body (no fields required — uid from JWT)
   const uid = authPayload.userId;
 
   const today = new Date().toISOString().slice(0, 10);
