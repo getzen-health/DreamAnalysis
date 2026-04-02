@@ -531,6 +531,8 @@ async function aiChatPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { message, userId } = req.body;
   if (!message || !userId) return badRequest(res, 'Missing message or userId');
+  if (typeof message !== 'string' || message.length > 2000) return badRequest(res, 'Message must be a string of ≤2000 characters');
+  if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   const db = getDb();
   await db.insert(schema.aiChats).values({ userId, message, isUser: true });
 
@@ -877,6 +879,8 @@ async function notificationsSubscribe(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const { userId, endpoint, keys } = req.body;
   if (!userId || !endpoint || !keys) return badRequest(res, 'userId, endpoint, and keys are required');
+  try { new URL(endpoint); } catch { return badRequest(res, 'endpoint must be a valid URL'); }
+  if (typeof userId !== 'string' || userId.length > 128) return badRequest(res, 'Invalid userId');
   const db = getDb();
   const [sub] = await db.insert(schema.pushSubscriptions).values({ userId, endpoint, keys }).returning();
   return success(res, sub, 201);
