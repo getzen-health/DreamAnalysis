@@ -1858,6 +1858,52 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Body metrics ─────────────────────────────────────────────────────────────
+
+async function bodyMetricsLatest(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  const [row] = await db.select().from(schema.bodyMetrics)
+    .where(eq(schema.bodyMetrics.userId, userId))
+    .orderBy(desc(schema.bodyMetrics.recordedAt)).limit(1);
+  if (!row) return success(res, null);
+  return success(res, row);
+}
+
+async function bodyMetricsList(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 90, 1), 365);
+  const since = new Date(Date.now() - days * 86_400_000);
+  const db = getDb();
+  const rows = await db.select().from(schema.bodyMetrics)
+    .where(and(eq(schema.bodyMetrics.userId, userId), gte(schema.bodyMetrics.recordedAt, since)))
+    .orderBy(desc(schema.bodyMetrics.recordedAt)).limit(200);
+  return success(res, rows);
+}
+
+// ── Health samples (steps / heart-rate by metric) ─────────────────────────────
+
+async function healthSamplesByMetric(req: VercelRequest, res: VercelResponse, userId: string, metric: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 7, 1), 365);
+  const since = new Date(Date.now() - days * 86_400_000);
+  const db = getDb();
+  const rows = await db.select({
+    value: schema.healthSamples.value,
+    recorded_at: schema.healthSamples.recordedAt,
+  }).from(schema.healthSamples)
+    .where(and(
+      eq(schema.healthSamples.userId, userId),
+      eq(schema.healthSamples.metric, metric),
+      gte(schema.healthSamples.recordedAt, since),
+    ))
+    .orderBy(desc(schema.healthSamples.recordedAt))
+    .limit(500);
+  return success(res, rows);
+}
+
 // ── Device connections ───────────────────────────────────────────────────────
 
 async function deviceConnectionsList(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -2597,6 +2643,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'sleep-alarm' && s1 && req.method === 'GET') return await sleepAlarm(req, res, s1);
 
     if (s0 === 'ai-coach' && req.method === 'POST') return await aiCoachPost(req, res);
+
+    if (s0 === 'body-metrics' && s1) {
+      if (segs[2] === 'latest' && req.method === 'GET') return await bodyMetricsLatest(req, res, s1);
+      if (req.method === 'GET') return await bodyMetricsList(req, res, s1);
+    }
+
+    if (s0 === 'health' && s1 && segs[2]) {
+      const metric = s1; // e.g. "steps" or "heart-rate"
+      const userId = segs[2];
+      return await healthSamplesByMetric(req, res, userId, metric);
+    }
 
     if (s0 === 'device-connections' && s1 && req.method === 'GET') return await deviceConnectionsList(req, res, s1);
     if (s0 === 'devices' && s1 && req.method === 'GET') return await devicesList(req, res, s1);
