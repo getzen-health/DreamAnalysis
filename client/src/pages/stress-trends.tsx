@@ -17,6 +17,7 @@ import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import { sbGetGeneric } from "@/lib/supabase-store";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AreaChart,
   Area,
@@ -160,7 +161,7 @@ export default function StressTrends() {
   const [range, setRange] = useState<TimeRange>("today");
   const { emotion: currentEmotion } = useCurrentEmotion();
 
-  const { data } = useQuery<HistoryEntry[]>({
+  const { data, isLoading } = useQuery<HistoryEntry[]>({
     queryKey: [`/api/brain/history/${userId}?days=90`],
     queryFn: async () => {
       let all: HistoryEntry[] = [];
@@ -311,7 +312,11 @@ export default function StressTrends() {
           </span>
         </div>
 
-        {chartData.length >= 2 ? (
+        {isLoading ? (
+          <div className="h-[220px] space-y-2 pt-2">
+            <Skeleton className="h-full w-full rounded-xl" />
+          </div>
+        ) : chartData.length >= 2 ? (
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart
               data={chartData}
