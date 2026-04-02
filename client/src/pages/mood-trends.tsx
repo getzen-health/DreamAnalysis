@@ -20,6 +20,7 @@ import { pageTransition, cardVariants } from "@/lib/animations";
 import { getParticipantId } from "@/lib/participant";
 import { useCurrentEmotion } from "@/hooks/use-current-emotion";
 import { sbGetGeneric } from "@/lib/supabase-store";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Sun, Sunset, Moon } from "lucide-react";
 
 /* ---------- constants ---------- */
@@ -230,7 +231,7 @@ export default function MoodTrends() {
   const [timelinePage, setTimelinePage] = useState(1);
   const { emotion: currentEmotion } = useCurrentEmotion();
 
-  const { data } = useQuery<HistoryEntry[]>({
+  const { data, isLoading } = useQuery<HistoryEntry[]>({
     queryKey: [`/api/brain/history/${userId}?days=90`],
     queryFn: async () => {
       let all: HistoryEntry[] = [];
@@ -400,8 +401,28 @@ export default function MoodTrends() {
         ))}
       </div>
 
+      {/* Loading skeleton for data sections */}
+      {isLoading && (
+        <div className="space-y-3">
+          <div className="rounded-2xl p-4 border border-border bg-card space-y-2">
+            <Skeleton className="h-4 w-28 rounded" />
+            <Skeleton className="h-6 w-full rounded-lg" />
+          </div>
+          <div className="rounded-2xl p-4 border border-border bg-card space-y-3">
+            <Skeleton className="h-4 w-20 rounded" />
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-3 py-2 border-l-2 border-muted pl-3">
+                <Skeleton className="h-6 w-6 rounded-full" />
+                <Skeleton className="h-4 flex-1 rounded" />
+                <Skeleton className="h-3 w-10 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Section 2: Top 5 Emotions — Stacked Bar */}
-      {distribution.length > 0 && (
+      {!isLoading && distribution.length > 0 && (
         <motion.div
           className="rounded-2xl p-4 border border-border bg-card"
           style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
@@ -450,7 +471,7 @@ export default function MoodTrends() {
       )}
 
       {/* Section 3: Emotion Timeline */}
-      {timelineEntries.length > 0 && (
+      {!isLoading && timelineEntries.length > 0 && (
         <motion.div
           className="rounded-2xl p-4 border border-border bg-card"
           style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
@@ -515,7 +536,7 @@ export default function MoodTrends() {
       )}
 
       {/* Section 4: Time-of-Day Pattern */}
-      {periodDominants.length > 0 && (
+      {!isLoading && periodDominants.length > 0 && (
         <motion.div
           className="rounded-2xl p-4 border border-border bg-card"
           style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
@@ -555,7 +576,7 @@ export default function MoodTrends() {
       )}
 
       {/* Section 5: Emotion Frequency */}
-      {frequency.length > 0 && (
+      {!isLoading && frequency.length > 0 && (
         <motion.div
           className="rounded-2xl p-4 border border-border bg-card"
           style={{ boxShadow: "0 2px 16px rgba(0,0,0,0.06)" }}
