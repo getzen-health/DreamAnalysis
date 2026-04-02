@@ -3412,6 +3412,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (s0 === 'readings') {
       if (!s1 && req.method === 'POST') return await readingsCreate(req, res);
+      // /api/readings/:userId/correct-latest — alias used by today.tsx for voice emotion correction
+      if (s1 && segs[2] === 'correct-latest' && req.method === 'PATCH') return await emotionsCorrectLatest(req, res, s1);
       if (s1 && req.method === 'GET')   return await readingsList(req, res, s1);
     }
 
