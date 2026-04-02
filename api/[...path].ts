@@ -1858,6 +1858,48 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Sleep alarm optimizer ─────────────────────────────────────────────────────
+
+async function sleepAlarm(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  const targetWake = req.query.targetWake as string;
+  if (!targetWake) return badRequest(res, 'targetWake required (HH:MM)');
+  const [hStr, mStr] = targetWake.split(':');
+  const wakeH = parseInt(hStr, 10);
+  const wakeM = parseInt(mStr, 10);
+  if (isNaN(wakeH) || isNaN(wakeM) || wakeH < 0 || wakeH > 23 || wakeM < 0 || wakeM > 59) {
+    return badRequest(res, 'targetWake must be HH:MM');
+  }
+  // Sleep cycle = 90 min; REM dominates cycles 4-6
+  const CYCLE_MIN = 90;
+  const now = new Date();
+  const wake = new Date(now);
+  wake.setHours(wakeH, wakeM, 0, 0);
+  if (wake <= now) wake.setDate(wake.getDate() + 1);
+  const totalMinutes = Math.round((wake.getTime() - now.getTime()) / 60000);
+  const estimatedCycles = Math.floor(totalMinutes / CYCLE_MIN);
+  // Optimal window: target the end of a REM cycle (slightly before wake)
+  const optimalMid = new Date(wake.getTime() - (totalMinutes % CYCLE_MIN) * 60000);
+  const optimalStart = new Date(optimalMid.getTime() - 15 * 60000);
+  const optimalEnd = new Date(optimalMid.getTime() + 15 * 60000);
+  const fmt = (d: Date) => d.toTimeString().slice(0, 5);
+  const expectedStage = estimatedCycles >= 4 ? 'REM' : estimatedCycles >= 2 ? 'NREM2' : 'NREM3';
+  const confidence = estimatedCycles >= 4 ? 0.85 : estimatedCycles >= 2 ? 0.7 : 0.5;
+  const note = estimatedCycles >= 5
+    ? 'Ideal sleep duration — expect vivid dreams and easy awakening.'
+    : estimatedCycles >= 4
+    ? 'Good sleep opportunity — aim to be in bed within 30 minutes.'
+    : 'Limited cycles — prioritize falling asleep quickly.';
+  return success(res, {
+    optimalWindow: { start: fmt(optimalStart), end: fmt(optimalEnd), midpoint: fmt(optimalMid) },
+    targetWake: targetWake,
+    estimatedCycles,
+    expectedStage,
+    confidence,
+    note,
+  });
+}
+
 // ── Reality tests ────────────────────────────────────────────────────────────
 
 async function realityTestPost(req: VercelRequest, res: VercelResponse) {
@@ -2248,6 +2290,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!s1 && req.method === 'POST') return await readingsCreate(req, res);
       if (s1 && req.method === 'GET')   return await readingsList(req, res, s1);
     }
+
+    if (s0 === 'sleep-alarm' && s1 && req.method === 'GET') return await sleepAlarm(req, res, s1);
 
     if (s0 === 'reality-test') {
       if (!s1 && req.method === 'POST') return await realityTestPost(req, res);
