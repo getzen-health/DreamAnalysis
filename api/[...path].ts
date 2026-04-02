@@ -737,7 +737,7 @@ async function healthSamplesGet(req: VercelRequest, res: VercelResponse, userId:
   try {
     const db = getDb();
     const metric = (req.query.metric as string) || 'heart_rate';
-    const days = parseInt((req.query.days as string) || '7', 10);
+    const days = Math.min(Math.max(parseInt((req.query.days as string) || '7', 10), 1), 365);
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const rows = await db
@@ -2171,7 +2171,7 @@ async function innerScorePost(req: VercelRequest, res: VercelResponse, userId: s
 
 async function innerScoreHistory(req: VercelRequest, res: VercelResponse, userId: string) {
   const url = new URL(req.url!, `http://${req.headers.host}`);
-  const days = parseInt(url.searchParams.get('days') ?? '30');
+  const days = Math.min(Math.max(parseInt(url.searchParams.get('days') ?? '30', 10), 1), 365);
   const since = new Date(Date.now() - days * 86400_000);
   const db = getDb();
   const rows = await db.select().from(schema.innerScores)
