@@ -1858,6 +1858,52 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── AI Coach ─────────────────────────────────────────────────────────────────
+
+async function aiCoachPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const { message, userId, history, context, memories, tone } = req.body;
+  if (!message || typeof message !== 'string') return badRequest(res, 'message required');
+  if (message.length > 2000) return badRequest(res, 'message must be ≤2000 characters');
+  if (userId && (typeof userId !== 'string' || userId.length > 128)) return badRequest(res, 'Invalid userId');
+  const db = getDb();
+  const rlKey = userId ? `ai-coach:${userId}` : `ai-coach:${getClientIp(req)}`;
+  const rl = await checkRateLimit(db, rlKey, 30, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!, 'Too many coach requests. Please wait.');
+  const openai = getOpenAIClient();
+  const sysPrompt = [
+    'You are a knowledgeable AI wellness coach specializing in sleep, dreams, and emotional health.',
+    context ? `User context: ${String(context).substring(0, 500)}` : '',
+    memories && Array.isArray(memories) && memories.length > 0
+      ? `User memories: ${memories.slice(0, 5).join('; ')}` : '',
+    `Coaching tone: ${tone ?? 'supportive'}. Be concise and actionable.`,
+  ].filter(Boolean).join(' ');
+
+  const conversationMsgs: { role: 'user' | 'assistant'; content: string }[] = [];
+  if (Array.isArray(history)) {
+    for (const h of history.slice(-8)) {
+      if (h && typeof h.message === 'string' && typeof h.isUser === 'boolean') {
+        conversationMsgs.push({ role: h.isUser ? 'user' : 'assistant', content: h.message.substring(0, 500) });
+      }
+    }
+  }
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: sysPrompt },
+        ...conversationMsgs,
+        { role: 'user', content: message },
+      ],
+    });
+    const reply = resp.choices[0].message.content || "I'm here to support your wellness journey.";
+    return success(res, { message: reply }, 200);
+  } catch (err) {
+    console.error('[aiCoach]', err instanceof Error ? err.message : err);
+    return error(res, 'Coach unavailable right now. Please try again.', 500);
+  }
+}
+
 // ── Sleep alarm optimizer ─────────────────────────────────────────────────────
 
 async function sleepAlarm(req: VercelRequest, res: VercelResponse, userId: string) {
@@ -2292,6 +2338,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (s0 === 'sleep-alarm' && s1 && req.method === 'GET') return await sleepAlarm(req, res, s1);
+
+    if (s0 === 'ai-coach' && req.method === 'POST') return await aiCoachPost(req, res);
 
     if (s0 === 'reality-test') {
       if (!s1 && req.method === 'POST') return await realityTestPost(req, res);
