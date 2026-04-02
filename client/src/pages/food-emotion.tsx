@@ -29,7 +29,7 @@ import {
 } from "recharts";
 import { useDevice } from "@/hooks/use-device";
 import { useVoiceData } from "@/hooks/use-voice-data";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { syncFoodLogToML } from "@/lib/ml-api";
 import { sbGetGeneric, sbGetSetting, sbSaveGeneric } from "../lib/supabase-store";
@@ -132,7 +132,7 @@ function FoodMoodInsights() {
     } catch { /* ignore */ }
 
     // 2. Also fetch server-side mood-correlated food data
-    fetch(resolveUrl(`/api/food/mood-correlation/${userId}?days=30`))
+    apiRequest("GET", `/api/food/mood-correlation/${userId}?days=30`)
       .then(r => r.ok ? r.json() : null)
       .then((serverData: {
         entries?: Array<{

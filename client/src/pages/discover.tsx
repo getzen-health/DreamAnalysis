@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { pageTransition, cardVariants } from "@/lib/animations";
-import { resolveUrl } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { useHealthSync } from "@/hooks/use-health-sync";
 import { useFusedState } from "@/hooks/use-fused-state";
@@ -736,7 +735,7 @@ export default function Discover() {
 
   // Fetch today's food logs for calorie sum
   const { data: foodLogs } = useQuery<{ calories?: number }[]>({
-    queryKey: [resolveUrl(`/api/food/logs/${userId}`)],
+    queryKey: [`/api/food/logs/${userId}`],
     retry: false,
   });
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation } from "wouter";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -171,10 +171,7 @@ function ParticipantRow({ participant, onDeleteSession }: { participant: AdminPa
   const handleDeleteSession = async (sessionId: number) => {
     setDeleting(true);
     try {
-      const res = await fetch(resolveUrl(`/api/study/admin/session/${sessionId}`), {
-        method: "DELETE",
-        credentials: "include",
-      });
+      const res = await apiRequest("DELETE", `/api/study/admin/session/${sessionId}`);
       if (res.ok) {
         onDeleteSession(sessionId);
       }
@@ -422,9 +419,9 @@ export default function StudyAdmin() {
 
     try {
       const [pRes, sRes, stRes] = await Promise.all([
-        fetch(resolveUrl("/api/study/admin/participants"), { credentials: "include" }),
-        fetch(resolveUrl("/api/study/admin/sessions"), { credentials: "include" }),
-        fetch(resolveUrl("/api/study/admin/stats"), { credentials: "include" }),
+        apiRequest("GET", "/api/study/admin/participants"),
+        apiRequest("GET", "/api/study/admin/sessions"),
+        apiRequest("GET", "/api/study/admin/stats"),
       ]);
 
       if (pRes.status === 401 || sRes.status === 401 || stRes.status === 401) {

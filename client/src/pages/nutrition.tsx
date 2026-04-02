@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { resolveUrl, apiRequest } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getParticipantId } from "@/lib/participant";
 import { hapticSuccess } from "@/lib/haptics";
 import { useVoiceData } from "@/hooks/use-voice-data";
@@ -176,20 +176,14 @@ function persistFoodLogLocally(userId: string, entry: FoodLog): void {
     sbSaveGeneric(key, existing);
   } catch { /* localStorage full or unavailable */ }
   // Also persist via Express API (primary server storage — no auth required)
-  import("@/lib/queryClient").then(({ resolveUrl }) => {
-    fetch(resolveUrl("/api/food/log"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId,
-        mealType: entry.mealType ?? "meal",
-        summary: entry.summary ?? (entry.foodItems ?? []).map((fi: any) => fi.name).join(", "),
-        totalCalories: entry.totalCalories ?? 0,
-        dominantMacro: entry.dominantMacro ?? null,
-        foodItems: entry.foodItems ?? [],
-      }),
-    }).catch((e) => console.warn("[nutrition] Express API food/log failed:", e));
-  }).catch(() => {});
+  apiRequest("POST", "/api/food/log", {
+    userId,
+    mealType: entry.mealType ?? "meal",
+    summary: entry.summary ?? (entry.foodItems ?? []).map((fi: any) => fi.name).join(", "),
+    totalCalories: entry.totalCalories ?? 0,
+    dominantMacro: entry.dominantMacro ?? null,
+    foodItems: entry.foodItems ?? [],
+  }).catch((e) => console.warn("[nutrition] Express API food/log failed:", e));
 
   // Also try Supabase (may fail due to RLS if not authenticated)
   import("@/lib/supabase-browser").then(({ getSupabase }) =>
@@ -1753,7 +1747,7 @@ function GlucoseSection({ userId }: { userId: string }) {
     queryKey: ["/api/device-connections", userId],
     queryFn: async () => {
       try {
-        const res = await fetch(resolveUrl(`/api/device-connections/${userId}`));
+        const res = await apiRequest("GET", `/api/device-connections/${userId}`);
         if (!res.ok) return [];
         return res.json();
       } catch {
@@ -1776,7 +1770,7 @@ function GlucoseSection({ userId }: { userId: string }) {
     queryKey: ["/api/glucose/current", userId],
     queryFn: async () => {
       try {
-        const res = await fetch(resolveUrl(`/api/glucose/current/${userId}`));
+        const res = await apiRequest("GET", `/api/glucose/current/${userId}`);
         if (!res.ok) return { current: null, trend: null };
         return res.json();
       } catch {
@@ -1980,7 +1974,7 @@ export default function Nutrition() {
       let apiLogs: FoodLog[] = [];
       // 1. Try Express API
       try {
-        const res = await fetch(resolveUrl(`/api/food/logs/${userId}`));
+        const res = await apiRequest("GET", `/api/food/logs/${userId}`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data)) apiLogs = data;
@@ -2111,7 +2105,7 @@ export default function Nutrition() {
     queryKey: ["/api/food/mood-correlation", userId],
     queryFn: async () => {
       try {
-        const res = await fetch(resolveUrl(`/api/food/mood-correlation/${userId}?days=7`));
+        const res = await apiRequest("GET", `/api/food/mood-correlation/${userId}?days=7`);
         if (res.ok) return res.json();
       } catch { /* API unavailable */ }
       return { entries: [], totalFoodLogs: 0, matchedWithMood: 0, matchedWithEmotion: 0 };

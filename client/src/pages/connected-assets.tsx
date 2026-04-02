@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useDevice } from "@/hooks/use-device";
 import { useQuery } from "@tanstack/react-query";
 import { getParticipantId } from "@/lib/participant";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { ingestHealthData } from "@/lib/ml-api";
 import { requestHealthWritePermissions } from "@/lib/health-connect";
 import {
@@ -126,10 +126,7 @@ export default function ConnectedAssets() {
   const { data: devicesData, refetch: refetchDevices } = useQuery({
     queryKey: ["devices", USER_ID],
     queryFn: async () => {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/devices/${USER_ID}`), {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await apiRequest("GET", `/api/devices/${USER_ID}`);
       if (!res.ok) return { devices: [] as DeviceInfo[] };
       return res.json() as Promise<{ devices: DeviceInfo[] }>;
     },
@@ -174,7 +171,7 @@ export default function ConnectedAssets() {
         sbSaveSetting("ndw_health_connect_granted", "true");
         toast({ title: "Connected", description: "Google Health Connect linked." });
       } else if (platform === "ios") {
-        await fetch(resolveUrl("/api/health/connect"), { method: "POST" });
+        await apiRequest("POST", "/api/health/connect");
         requestHealthWritePermissions().catch(() => {});
         setHealthConnected(true);
         sbSaveSetting("ndw_apple_health_granted", "true");
@@ -212,11 +209,7 @@ export default function ConnectedAssets() {
   const handleConnectWearable = async (provider: string) => {
     setConnectingProvider(provider);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/devices/connect/${provider}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
+      const res = await apiRequest("POST", `/api/devices/connect/${provider}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as Record<string, string>).error ?? "Failed to start connection");
@@ -236,11 +229,7 @@ export default function ConnectedAssets() {
   const handleSyncWearable = async (provider: string) => {
     setSyncingProvider(provider);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/devices/sync/${provider}`), {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
+      const res = await apiRequest("POST", `/api/devices/sync/${provider}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as Record<string, string>).error ?? "Sync failed");
@@ -258,11 +247,7 @@ export default function ConnectedAssets() {
   const handleDisconnectWearable = async (provider: string) => {
     setDisconnectingProvider(provider);
     try {
-      const token = localStorage.getItem("auth_token");
-      const res = await fetch(resolveUrl(`/api/devices/${provider}`), {
-        method: "DELETE",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await apiRequest("DELETE", `/api/devices/${provider}`);
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error((err as Record<string, string>).error ?? "Failed to disconnect");

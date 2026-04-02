@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { resolveUrl } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,11 +17,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(resolveUrl('/api/auth/forgot-password'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      const res = await apiRequest('POST', '/api/auth/forgot-password', { email });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.message || 'Failed to send reset email. Please try again.');

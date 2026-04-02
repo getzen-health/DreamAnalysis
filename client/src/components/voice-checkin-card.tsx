@@ -14,7 +14,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -393,11 +393,7 @@ export function VoiceCheckinCard({
     // Update per-modality accuracy tracking
     updateModalityAccuracy("voice", emotion === result?.emotion);
     // Fire-and-forget: save correction to backend
-    fetch(resolveUrl(`/api/readings/${resolvedUserId}/correct-latest`), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correctedEmotion: emotion }),
-    }).catch((err) => console.error("Failed to save emotion correction:", err));
+    apiRequest("PATCH", `/api/readings/${resolvedUserId}/correct-latest`, { correctedEmotion: emotion }).catch((err) => console.error("Failed to save emotion correction:", err));
     // Persist correction to Supabase + ML backend for retraining
     recordCorrection({
       userId: resolvedUserId,
@@ -419,11 +415,7 @@ export function VoiceCheckinCard({
     updateModalityAccuracy("voice", true);
     // Confirm = correct with the same emotion that was predicted
     if (result?.emotion) {
-      fetch(resolveUrl(`/api/readings/${resolvedUserId}/correct-latest`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ correctedEmotion: result.emotion }),
-      }).catch(() => {});
+      apiRequest("PATCH", `/api/readings/${resolvedUserId}/correct-latest`, { correctedEmotion: result.emotion }).catch(() => {});
       // Persist confirmation to Supabase + ML backend
       recordCorrection({
         userId: resolvedUserId,
@@ -757,45 +749,33 @@ export function VoiceCheckinCard({
         writeEmotionToHealth(checkinResult.emotion, checkinResult.valence).catch(() => {});
 
         // Fire-and-forget: record a streak check-in so the StreakCard updates
-        fetch(resolveUrl("/api/streaks/checkin"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: resolvedUserId }),
-        }).catch(() => {});
+        apiRequest("POST", "/api/streaks/checkin", { userId: resolvedUserId }).catch(() => {});
 
         // Save emotion reading to Express DB so Daily Report + Session History see it
-        fetch(resolveUrl("/api/emotion-readings/batch"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            readings: [{
-              userId: resolvedUserId,
-              sessionId: `voice-${checkinResult.checkin_id}`,
-              stress: checkinResult.stress_index,
-              happiness: checkinResult.valence > 0 ? checkinResult.valence : 0,
-              focus: checkinResult.focus_index,
-              energy: checkinResult.arousal,
-              dominantEmotion: checkinResult.emotion,
-              valence: checkinResult.valence,
-              arousal: checkinResult.arousal,
-            }],
-          }),
+        apiRequest("POST", "/api/emotion-readings/batch", {
+          readings: [{
+            userId: resolvedUserId,
+            sessionId: `voice-${checkinResult.checkin_id}`,
+            stress: checkinResult.stress_index,
+            happiness: checkinResult.valence > 0 ? checkinResult.valence : 0,
+            focus: checkinResult.focus_index,
+            energy: checkinResult.arousal,
+            dominantEmotion: checkinResult.emotion,
+            valence: checkinResult.valence,
+            arousal: checkinResult.arousal,
+          }],
         }).catch((err) => console.error("Failed to save voice reading:", err));
 
         // Also save to userReadings for the brain history merge
-        fetch(resolveUrl("/api/user-readings"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: resolvedUserId,
-            source: "voice",
-            emotion: checkinResult.emotion,
-            valence: checkinResult.valence,
-            arousal: checkinResult.arousal,
-            stress: checkinResult.stress_index,
-            confidence: checkinResult.confidence,
-            modelType: checkinResult.model_type || "voice",
-          }),
+        apiRequest("POST", "/api/user-readings", {
+          userId: resolvedUserId,
+          source: "voice",
+          emotion: checkinResult.emotion,
+          valence: checkinResult.valence,
+          arousal: checkinResult.arousal,
+          stress: checkinResult.stress_index,
+          confidence: checkinResult.confidence,
+          modelType: checkinResult.model_type || "voice",
         }).catch((err) => console.error("Failed to save user reading:", err));
 
         // Invalidate cached queries so Daily Report, Sessions, Streak, and Emotion Lab update

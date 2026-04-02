@@ -10,7 +10,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Music, LogIn, LogOut, Play, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { resolveUrl } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 
 interface SpotifyStatus {
   connected: boolean;
@@ -39,7 +39,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch(resolveUrl("/api/spotify/status"), { credentials: "include" });
+      const res = await apiRequest("GET", "/api/spotify/status");
       if (res.ok) setStatus(await res.json());
     } catch { /* server offline */ }
   }, []);
@@ -65,12 +65,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(resolveUrl("/api/spotify/play"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ mood }),
-      });
+      const res = await apiRequest("POST", "/api/spotify/play", { mood });
       const data: PlayResult = await res.json();
       if (data.ok) {
         setPlaying(mood);
@@ -89,7 +84,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
   }, []);
 
   const disconnect = useCallback(async () => {
-    await fetch(resolveUrl("/api/spotify/disconnect"), { method: "POST", credentials: "include" });
+    await apiRequest("POST", "/api/spotify/disconnect");
     setStatus((s) => s ? { ...s, connected: false, username: null } : null);
   }, []);
 
@@ -202,12 +197,7 @@ export default function SpotifyConnect({ autoPlayMood, compact = false }: Spotif
  */
 export async function triggerSpotifyPlay(mood: "calm" | "focus" | "sleep"): Promise<boolean> {
   try {
-    const res = await fetch(resolveUrl("/api/spotify/play"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ mood }),
-    });
+    const res = await apiRequest("POST", "/api/spotify/play", { mood });
     const data = await res.json();
     return !!data.ok;
   } catch {
