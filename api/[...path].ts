@@ -1858,6 +1858,117 @@ async function readingsList(req: VercelRequest, res: VercelResponse, userId: str
   }
 }
 
+// ── Habits ───────────────────────────────────────────────────────────────────
+
+async function habitsGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  const rows = await db.select().from(schema.habits)
+    .where(and(eq(schema.habits.userId, userId), eq(schema.habits.isActive, true)))
+    .orderBy(asc(schema.habits.createdAt));
+  return success(res, rows);
+}
+
+async function habitsPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { name, category, icon, targetValue, unit } = req.body;
+  if (!name || typeof name !== 'string' || name.length > 100) return badRequest(res, 'name required (max 100 chars)');
+  const db = getDb();
+  const [row] = await db.insert(schema.habits).values({
+    userId: authPayload.userId,
+    name: name.trim(),
+    category: typeof category === 'string' ? category : null,
+    icon: typeof icon === 'string' ? icon : null,
+    targetValue: targetValue != null ? String(targetValue) : null,
+    unit: typeof unit === 'string' ? unit : null,
+    isActive: true,
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function habitsDelete(req: VercelRequest, res: VercelResponse, habitId: string) {
+  if (req.method !== 'DELETE') return methodNotAllowed(res, ['DELETE']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const db = getDb();
+  const [existing] = await db.select({ userId: schema.habits.userId }).from(schema.habits)
+    .where(eq(schema.habits.id, habitId)).limit(1);
+  if (!existing) return error(res, 'Habit not found', 404);
+  if (existing.userId !== authPayload.userId) return unauthorized(res, 'Not your habit');
+  // Soft delete
+  await db.update(schema.habits).set({ isActive: false }).where(eq(schema.habits.id, habitId));
+  return success(res, { deleted: true });
+}
+
+async function habitLogsGet(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const days = Math.min(Math.max(parseInt(req.query.days as string) || 7, 1), 90);
+  const since = new Date(Date.now() - days * 86_400_000);
+  const db = getDb();
+  const rows = await db.select().from(schema.habitLogs)
+    .where(and(eq(schema.habitLogs.userId, userId), gte(schema.habitLogs.loggedAt, since)))
+    .orderBy(desc(schema.habitLogs.loggedAt))
+    .limit(500);
+  return success(res, rows);
+}
+
+async function habitLogsPost(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const { habitId, value, note } = req.body;
+  if (!habitId || typeof habitId !== 'string') return badRequest(res, 'habitId required');
+  const val = Number(value);
+  if (isNaN(val)) return badRequest(res, 'value must be a number');
+  const db = getDb();
+  const [row] = await db.insert(schema.habitLogs).values({
+    userId: authPayload.userId,
+    habitId,
+    value: String(val),
+    note: typeof note === 'string' ? note.substring(0, 200) : null,
+  }).returning();
+  return success(res, row, 201);
+}
+
+async function habitLogsStreaks(req: VercelRequest, res: VercelResponse, userId: string) {
+  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!requireOwner(req, res, userId)) return;
+  const db = getDb();
+  const [userHabits, logs] = await Promise.all([
+    db.select({ id: schema.habits.id }).from(schema.habits)
+      .where(and(eq(schema.habits.userId, userId), eq(schema.habits.isActive, true))),
+    db.select({ habitId: schema.habitLogs.habitId, loggedAt: schema.habitLogs.loggedAt })
+      .from(schema.habitLogs).where(eq(schema.habitLogs.userId, userId))
+      .orderBy(desc(schema.habitLogs.loggedAt)).limit(1000),
+  ]);
+  // Group log dates by habitId
+  const logsByHabit = new Map<string, Set<string>>();
+  for (const log of logs) {
+    if (!log.habitId) continue;
+    const date = new Date(log.loggedAt!).toISOString().slice(0, 10);
+    if (!logsByHabit.has(log.habitId)) logsByHabit.set(log.habitId, new Set());
+    logsByHabit.get(log.habitId)!.add(date);
+  }
+  // Compute current streak per habit
+  const streaks: Record<string, number> = {};
+  for (const { id } of userHabits) {
+    const dates = logsByHabit.get(id);
+    if (!dates) { streaks[id] = 0; continue; }
+    let streak = 0;
+    const d = new Date();
+    while (dates.has(d.toISOString().slice(0, 10))) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    streaks[id] = streak;
+  }
+  return success(res, streaks);
+}
+
 // ── AI Coach ─────────────────────────────────────────────────────────────────
 
 async function aiCoachPost(req: VercelRequest, res: VercelResponse) {
@@ -2340,6 +2451,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (s0 === 'sleep-alarm' && s1 && req.method === 'GET') return await sleepAlarm(req, res, s1);
 
     if (s0 === 'ai-coach' && req.method === 'POST') return await aiCoachPost(req, res);
+
+    if (s0 === 'habits') {
+      if (!s1 && req.method === 'POST') return await habitsPost(req, res);
+      if (s1 && req.method === 'GET') return await habitsGet(req, res, s1);
+      if (s1 && req.method === 'DELETE') return await habitsDelete(req, res, s1);
+    }
+
+    if (s0 === 'habit-logs') {
+      if (!s1 && req.method === 'POST') return await habitLogsPost(req, res);
+      if (s1 && segs[2] === 'streaks' && req.method === 'GET') return await habitLogsStreaks(req, res, s1);
+      if (s1 && req.method === 'GET') return await habitLogsGet(req, res, s1);
+    }
 
     if (s0 === 'reality-test') {
       if (!s1 && req.method === 'POST') return await realityTestPost(req, res);
