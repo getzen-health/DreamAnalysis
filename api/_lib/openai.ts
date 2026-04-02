@@ -1,4 +1,5 @@
 import OpenAI from 'openai';
+import { observeOpenAI } from 'langfuse';
 
 let cachedClient: OpenAI | null = null;
 
@@ -15,10 +16,29 @@ export function getOpenAIClient(): OpenAI {
     throw new Error('GROQ_API_KEY environment variable is not set');
   }
 
-  cachedClient = new OpenAI({
+  const raw = new OpenAI({
     apiKey,
     baseURL: 'https://api.groq.com/openai/v1',
   });
+
+  // Wrap with Langfuse observability when keys are present (no-op otherwise)
+  const secretKey = process.env.LANGFUSE_SECRET_KEY;
+  const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
+  if (secretKey && publicKey) {
+    cachedClient = observeOpenAI(raw, {
+      clientInitParams: {
+        secretKey,
+        publicKey,
+        baseUrl: process.env.LANGFUSE_BASEURL ?? 'https://cloud.langfuse.com',
+        release: process.env.npm_package_version ?? '1.0.0',
+        environment: process.env.NODE_ENV ?? 'production',
+        flushInterval: 2000,
+      },
+      generationName: 'groq-llm',
+    }) as unknown as OpenAI;
+  } else {
+    cachedClient = raw;
+  }
 
   return cachedClient;
 }
