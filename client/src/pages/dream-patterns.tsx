@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
 import {
   AreaChart,
@@ -173,7 +174,7 @@ export default function DreamPatterns() {
 
   // Dream patterns query — aggregated themes/symbols/sentiment from dream journal
   const patternDays = periodDays === 1 ? 7 : periodDays;
-  const { data: dreamPatterns } = useQuery<DreamPatternData>({
+  const { data: dreamPatterns, isLoading: patternsLoading } = useQuery<DreamPatternData>({
     queryKey: ["dream-patterns", userId, patternDays],
     queryFn: async () => {
       const res = await fetch(resolveUrl(`/api/dream-patterns/${userId}?days=${patternDays}`));
@@ -426,6 +427,44 @@ export default function DreamPatterns() {
     labelStyle: { color: "var(--muted-foreground)", marginBottom: 4, fontSize: 10 },
     itemStyle: { padding: "1px 0" },
   };
+
+  // Loading skeleton
+  if (patternsLoading) {
+    return (
+      <main className="p-6 space-y-6 max-w-5xl">
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-5 w-5 rounded-full" />
+          <Skeleton className="h-6 w-40" />
+        </div>
+        {[...Array(4)].map((_, i) => (
+          <div key={i} className="rounded-xl border border-border p-5 space-y-3">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-3 w-48" />
+          </div>
+        ))}
+      </main>
+    );
+  }
+
+  // Empty state — no dreams logged yet
+  if (!dreamPatterns && !patternsLoading) {
+    return (
+      <main className="p-6 max-w-5xl">
+        <div className="flex items-center gap-2 mb-6">
+          <Moon className="h-5 w-5 text-secondary" />
+          <span className="text-lg font-semibold">Dream Patterns</span>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-10 flex flex-col items-center gap-4 text-center">
+          <Moon className="h-10 w-10 text-muted-foreground/40" />
+          <div>
+            <p className="font-semibold text-foreground">No dream data yet</p>
+            <p className="text-sm text-muted-foreground mt-1">Log your first dream in the Dream Journal to see patterns here.</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="p-6 space-y-6 max-w-5xl">
