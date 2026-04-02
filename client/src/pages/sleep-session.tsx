@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDevice } from "@/hooks/use-device";
 import { startSession, stopSession } from "@/lib/ml-api";
 import { getParticipantId } from "@/lib/participant";
@@ -191,7 +192,7 @@ export default function SleepSession() {
   });
 
   // Real sleep stats from DB
-  const { data: healthMetrics } = useQuery<HealthMetric[]>({
+  const { data: healthMetrics, isLoading: healthLoading } = useQuery<HealthMetric[]>({
     queryKey: ["/api/health-metrics", CURRENT_USER],
     queryFn: async () => {
       const res = await apiRequest("GET", `/api/health-metrics/${CURRENT_USER}`);
@@ -501,6 +502,16 @@ export default function SleepSession() {
             <Clock className="h-4 w-4 text-muted-foreground" />
             <h3 className="text-sm font-medium">Recent Sleep</h3>
           </div>
+          {healthLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="text-center flex flex-col items-center gap-1">
+                  <Skeleton className="h-8 w-16 rounded" />
+                  <Skeleton className="h-3 w-20 rounded" />
+                </div>
+              ))}
+            </div>
+          ) : (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {recentStats.map(({ label, value }) => (
               <div key={label} className="text-center">
@@ -509,6 +520,7 @@ export default function SleepSession() {
               </div>
             ))}
           </div>
+          )}
         </Card>
 
         {/* Smart Alarm Settings */}
