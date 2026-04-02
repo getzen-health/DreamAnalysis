@@ -950,6 +950,9 @@ async function notificationsSubscribe(req: VercelRequest, res: VercelResponse) {
   const userId = authPayload.userId;
   if (!endpoint || !keys) return badRequest(res, 'endpoint and keys are required');
   try { new URL(endpoint); } catch { return badRequest(res, 'endpoint must be a valid URL'); }
+  if (typeof keys !== 'object' || keys === null) return badRequest(res, 'keys must be an object');
+  if (!keys.p256dh || typeof keys.p256dh !== 'string') return badRequest(res, 'keys.p256dh is required');
+  if (!keys.auth || typeof keys.auth !== 'string') return badRequest(res, 'keys.auth is required');
   const db = getDb();
   // Deduplicate: return existing record if this endpoint is already registered
   const [existing] = await db.select().from(schema.pushSubscriptions)
@@ -1016,9 +1019,10 @@ async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
 
 async function analyzeMood(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
-  const { text } = req.body;
+  const rawText = req.body?.text;
+  const text = typeof rawText === 'string' ? rawText.trim() : '';
   if (!text) return badRequest(res, 'Missing text to analyze');
-  if (typeof text !== 'string' || text.length > 2000) return badRequest(res, 'Text must be a string of ≤2000 characters');
+  if (text.length > 2000) return badRequest(res, 'Text must be a string of ≤2000 characters');
   // Rate limit: 60 mood analyses per IP per hour
   const rlMood = await checkRateLimit(getDb(), `analyze-mood:${getClientIp(req)}`, 60, 60);
   if (!rlMood.allowed) return tooManyRequests(res, rlMood.retryAfterSeconds!);
@@ -2772,9 +2776,10 @@ async function voiceEmotionPost(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
   const authPayload = requireAuth(req, res);
   if (!authPayload) return;
-  const { emotion, valence, arousal, confidence, probabilities, timestamp } = req.body || {};
+  const { valence, arousal, confidence, probabilities, timestamp } = req.body || {};
   const userId = authPayload.userId;
-  if (!emotion || typeof emotion !== 'string' || emotion.length > 100) return badRequest(res, 'emotion must be a non-empty string ≤100 chars');
+  const emotion = typeof req.body?.emotion === 'string' ? req.body.emotion.trim() : '';
+  if (!emotion || emotion.length > 100) return badRequest(res, 'emotion must be a non-empty string ≤100 chars');
   const parsedTs = timestamp ? new Date(timestamp) : new Date();
   if (isNaN(parsedTs.getTime())) return badRequest(res, 'Invalid timestamp');
   const db = getDb();
