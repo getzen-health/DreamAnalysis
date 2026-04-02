@@ -12,6 +12,7 @@ import { Wind, Play, Square, Radio, TrendingDown, TrendingUp, Minus, Music, Head
 import { getParticipantId } from "@/lib/participant";
 import { hapticLight, hapticMedium, hapticSuccess } from "@/lib/haptics";
 import SpotifyConnect from "@/components/spotify-connect";
+import { MoodMusicPlayer } from "@/components/mood-music-player";
 import { InterventionSummary, type InterventionMetrics } from "@/components/intervention-summary";
 
 // ─── Breathing exercise definitions ──────────────────────────────────────────
@@ -596,95 +597,106 @@ export default function Biofeedback() {
       {/* ── MUSIC TAB ── */}
       {activeTab === "music" && (
         <div className="space-y-5">
-          {/* Spotify connect / auto-play */}
-          <SectionErrorBoundary label="Spotify"><SpotifyConnect autoPlayMood={musicMood as "calm" | "focus"} /></SectionErrorBoundary>
+          {/* Binaural Beat Player — on-device, no external services */}
+          <SectionErrorBoundary label="Binaural Beats">
+            <MoodMusicPlayer
+              emotion={voiceResult?.emotion ?? undefined}
+              isStreaming={isStreaming}
+              eegState={
+                stressLevel !== undefined
+                  ? {
+                      stress: stressLevel,
+                      focus: latestFrame?.analysis?.emotions?.focus_index ?? 0.5,
+                      arousal: latestFrame?.analysis?.emotions?.arousal ?? 0.5,
+                      dominantBand: (latestFrame?.analysis as Record<string, unknown> | undefined)
+                        ?.dominant_band as string | undefined ?? undefined,
+                      emotion: voiceResult?.emotion ?? "neutral",
+                    }
+                  : undefined
+              }
+            />
+          </SectionErrorBoundary>
 
-          {/* Mood switcher */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground">Mood:</span>
-            <div className="flex gap-1 p-0.5 rounded-lg bg-muted/20 border border-border/30">
+          {/* Spotify — stream real music on top */}
+          <SectionErrorBoundary label="Spotify">
+            <SpotifyConnect autoPlayMood={musicMood as "calm" | "focus"} />
+          </SectionErrorBoundary>
+
+          {/* Curated playlist cards */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Curated Playlists</p>
+            <div className="flex gap-1 p-0.5 rounded-lg bg-muted/20 border border-border/30 mb-3 w-fit">
               <button
                 onClick={() => setMusicMood("calm")}
                 className={`px-3 py-1 rounded text-xs font-medium transition-all ${
-                  musicMood === "calm"
-                    ? "bg-background/80 text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                  musicMood === "calm" ? "bg-background/80 text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Calm / Stress relief
+                Calm / Stress
               </button>
               <button
                 onClick={() => setMusicMood("focus")}
                 className={`px-3 py-1 rounded text-xs font-medium transition-all ${
-                  musicMood === "focus"
-                    ? "bg-background/80 text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                  musicMood === "focus" ? "bg-background/80 text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 Focus / Deep work
               </button>
             </div>
-          </div>
-
-          {/* Playlist cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {PLAYLISTS.filter(p => p.mood === musicMood).map(playlist => (
-              <Card key={playlist.id} className="rounded-[14px] bg-card border border-border p-5 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-                    style={{ background: `${playlist.color}20`, border: `1px solid ${playlist.color}40` }}
-                  >
-                    <Music className="h-4 w-4" style={{ color: playlist.color }} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {PLAYLISTS.filter(p => p.mood === musicMood).map(playlist => (
+                <Card key={playlist.id} className="rounded-[14px] bg-card border border-border p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div
+                      className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+                      style={{ background: `${playlist.color}20`, border: `1px solid ${playlist.color}40` }}
+                    >
+                      <Music className="h-3.5 w-3.5" style={{ color: playlist.color }} />
+                    </div>
+                    {playlist.bpm && (
+                      <span
+                        className="text-[9px] font-mono px-1.5 py-0.5 rounded-full"
+                        style={{ background: `${playlist.color}15`, color: playlist.color }}
+                      >
+                        {playlist.bpm}
+                      </span>
+                    )}
                   </div>
-                  {playlist.bpm && (
-                    <span
-                      className="text-[10px] font-mono px-2 py-0.5 rounded-full"
+                  <div>
+                    <p className="text-xs font-semibold">{playlist.title}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{playlist.description}</p>
+                  </div>
+                  <div className="flex gap-2 pt-1">
+                    <a
+                      href={playlist.spotifyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-[10px] font-medium transition-colors"
                       style={{ background: `${playlist.color}15`, color: playlist.color }}
                     >
-                      {playlist.bpm}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">{playlist.title}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{playlist.description}</p>
-                </div>
-                <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                  {playlist.detail}
-                </p>
-                <div className="flex gap-2 pt-1">
-                  <a
-                    href={playlist.spotifyUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium transition-colors"
-                    style={{ background: `${playlist.color}15`, color: playlist.color }}
-                  >
-                    Spotify
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                  <a
-                    href={playlist.youtubeUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border border-border/30 transition-colors"
-                  >
-                    YouTube
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-              </Card>
-            ))}
+                      Spotify <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                    <a
+                      href={playlist.youtubeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 flex items-center justify-center gap-1 rounded-lg py-1.5 text-[10px] font-medium text-muted-foreground hover:text-foreground border border-border/30 transition-colors"
+                    >
+                      YouTube <ExternalLink className="h-2.5 w-2.5" />
+                    </a>
+                  </div>
+                </Card>
+              ))}
+            </div>
           </div>
 
-          {/* Effectiveness note */}
+          {/* How it works */}
           <Card className="rounded-[14px] bg-card border border-border p-4">
             <p className="text-xs text-muted-foreground leading-relaxed">
               <span className="text-foreground font-medium">How it works: </span>
-              After you listen, go back to the Brain Monitor — if your stress dropped, it worked.
-              The intervention engine tracks which music actually reduced your cortisol and will
-              recommend it again next time.
+              Binaural beats use the Web Audio API to play two slightly different frequencies — one per ear.
+              Your brain perceives the difference as a rhythm that entrains to the target brainwave band.
+              After a session, check Brain Monitor to see if your stress / focus shifted.
             </p>
           </Card>
         </div>

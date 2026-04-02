@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { SectionErrorBoundary } from "@/components/section-error-boundary";
+import { MoodMusicPlayer } from "@/components/mood-music-player";
 import { useQuery } from "@tanstack/react-query";
 import { EEGWaveformCanvas } from "@/components/charts/eeg-waveform-canvas";
 import { AlertBanner, type AlertLevel } from "@/components/alert-banner";
@@ -1026,6 +1027,21 @@ export default function BrainMonitor() {
           ))}
         </div>
       )}
+
+      {/* ── Mood Music Player — binaural beats auto-tuned to live EEG state ── */}
+      <SectionErrorBoundary label="Mood Music">
+        <MoodMusicPlayer
+          emotion={analysis?.emotions?.emotion ?? voiceResult?.emotion ?? undefined}
+          isStreaming={isStreaming}
+          eegState={analysis ? {
+            stress: (analysis?.stress as { stress_index?: number } | undefined)?.stress_index ?? 0.3,
+            focus: (analysis?.emotions as { focus_index?: number } | undefined)?.focus_index ?? 0.5,
+            arousal: (analysis?.emotions as { arousal?: number } | undefined)?.arousal ?? 0.5,
+            dominantBand: (analysis as Record<string, unknown>)?.dominant_band as string | undefined,
+            emotion: (analysis?.emotions as { emotion?: string } | undefined)?.emotion ?? "neutral",
+          } : undefined}
+        />
+      </SectionErrorBoundary>
 
       {/* EEG intervention trigger toast (#504) */}
       {activeTrigger && (
