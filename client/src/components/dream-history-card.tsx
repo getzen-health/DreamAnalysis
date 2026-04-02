@@ -171,9 +171,12 @@ function DreamRow({ entry }: { entry: DreamEntry }) {
 
 // ── Main card ────────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 20;
+
 export function DreamHistoryCard({ userId }: Props) {
   const [filter, setFilter] = useState<DreamFilter>("all");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
 
   const { data: rawData, isLoading } = useQuery<DreamEntry[]>({
     queryKey: ["dream-analysis", userId],
@@ -191,6 +194,8 @@ export function DreamHistoryCard({ userId }: Props) {
   const stats = computeStats(sorted);
 
   const visible = searchDreams(applyFilter(sorted, filter), query);
+  const paged = visible.slice(0, page * PAGE_SIZE);
+  const hasMore = paged.length < visible.length;
 
   return (
     <Card className="glass-card p-5 hover-glow border-secondary/20">
@@ -212,7 +217,7 @@ export function DreamHistoryCard({ userId }: Props) {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/50 pointer-events-none" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setPage(1); }}
             placeholder="Search dreams, themes, insights…"
             className="pl-8 h-8 text-xs bg-white/5 border-white/10 focus:border-secondary/40"
           />
@@ -223,7 +228,7 @@ export function DreamHistoryCard({ userId }: Props) {
           {(Object.keys(FILTER_LABELS) as DreamFilter[]).map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => { setFilter(f); setPage(1); }}
               className={`text-[10px] px-2.5 py-1 rounded-full border transition-colors
                 ${filter === f
                   ? "bg-secondary/20 border-secondary/40 text-secondary"
@@ -250,9 +255,17 @@ export function DreamHistoryCard({ userId }: Props) {
           </p>
         ) : (
           <div className="space-y-2 max-h-[480px] overflow-y-auto pr-1">
-            {visible.map((entry) => (
+            {paged.map((entry) => (
               <DreamRow key={entry.id} entry={entry} />
             ))}
+            {hasMore && (
+              <button
+                onClick={() => setPage((p) => p + 1)}
+                className="w-full text-xs text-muted-foreground py-2 hover:text-foreground transition-colors"
+              >
+                Show {Math.min(PAGE_SIZE, visible.length - paged.length)} more…
+              </button>
+            )}
           </div>
         )}
       </CardContent>
