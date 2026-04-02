@@ -1375,12 +1375,17 @@ const foodLogSchema = z.object({
 });
 
 async function foodLog(req: VercelRequest, res: VercelResponse) {
-  const body = await parseRequestBody(req) as unknown;
-  const parsed = foodLogSchema.safeParse(body);
+  // Authenticate — log goes to the authenticated user (ignore body userId)
+  const authPayload = requireAuth(req, res);
+  if (!authPayload) return;
+  const parsed = foodLogSchema.safeParse(req.body);
   if (!parsed.success) return badRequest(res, parsed.error.issues[0]?.message ?? 'Invalid food log data');
   const db = getDb();
+  // Rate limit: 50 food log entries per user per hour
+  const rl = await checkRateLimit(db, `food-log:${authPayload.userId}`, 50, 60);
+  if (!rl.allowed) return tooManyRequests(res, rl.retryAfterSeconds!);
   const [row] = await db.insert(schema.foodLogs).values({
-    userId: parsed.data.userId, mealType: parsed.data.mealType,
+    userId: authPayload.userId, mealType: parsed.data.mealType,
     summary: parsed.data.summary ?? null, totalCalories: parsed.data.totalCalories ?? null,
     dominantMacro: parsed.data.dominantMacro ?? null, foodItems: parsed.data.foodItems ?? null,
   }).returning();
