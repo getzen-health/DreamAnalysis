@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { SectionErrorBoundary } from "@/components/section-error-boundary";
 import { useQuery } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -725,20 +726,20 @@ export default function DreamPatterns() {
       {!isLiveToday && (
         <>
           {/* Weekly Dream Synthesis — LLM-generated narrative from structured metadata */}
-          <WeeklySynthesisCard userId={userId} />
+          <SectionErrorBoundary label="Weekly Synthesis"><WeeklySynthesisCard userId={userId} /></SectionErrorBoundary>
 
           {/* Dream Quality Score + 14-day sparkline */}
           {dreamQualityTrend && (
-            <DreamQualityCard data={dreamQualityTrend} />
+            <SectionErrorBoundary label="Dream Quality"><DreamQualityCard data={dreamQualityTrend} /></SectionErrorBoundary>
           )}
 
           {/* Pattern Insights from dream journal */}
           {/* Dream + Biometric Fusion — auto-generated from EEG, no user input */}
-          <DreamFusionCard insight={dreamFusionInsight} />
+          <SectionErrorBoundary label="Dream Fusion"><DreamFusionCard insight={dreamFusionInsight} /></SectionErrorBoundary>
 
           {/* Longitudinal dream theme tracking — 7/30/90 day patterns (#549) */}
           {themeTrackerDreams.length > 0 && (
-            <DreamPatternsCard dreams={themeTrackerDreams} />
+            <SectionErrorBoundary label="Dream Patterns"><DreamPatternsCard dreams={themeTrackerDreams} /></SectionErrorBoundary>
           )}
 
           {dreamPatterns && dreamPatterns.entryCount > 0 && (
@@ -861,29 +862,29 @@ export default function DreamPatterns() {
 
           {/* Nightmare Recurrence + IRT Effectiveness */}
           {nightmareRecurrence && (
-            <NightmareRecurrenceCard data={nightmareRecurrence} />
+            <SectionErrorBoundary label="Nightmare Recurrence"><NightmareRecurrenceCard data={nightmareRecurrence} /></SectionErrorBoundary>
           )}
 
           {/* Lucidity Predictor — tonight's lucid dream potential score */}
-          <LucidityPredictorCard userId={userId} />
+          <SectionErrorBoundary label="Lucidity Predictor"><LucidityPredictorCard userId={userId} /></SectionErrorBoundary>
 
           {/* Dream Recall Heatmap — 28-day calendar of recording consistency */}
-          <DreamRecallHeatmap userId={userId} />
+          <SectionErrorBoundary label="Recall Heatmap"><DreamRecallHeatmap userId={userId} /></SectionErrorBoundary>
 
           {/* Presleep Intention — set tonight's intention, track alignment with dreams */}
-          <PresleepIntentionCard />
+          <SectionErrorBoundary label="Presleep Intention"><PresleepIntentionCard /></SectionErrorBoundary>
 
           {/* Emotional Arc Trend — valence of dream narrative arcs over time */}
-          <EmotionalArcTrendCard userId={userId} />
+          <SectionErrorBoundary label="Emotional Arc"><EmotionalArcTrendCard userId={userId} /></SectionErrorBoundary>
 
           {/* Dream Journal History — searchable/filterable past entries */}
-          <DreamHistoryCard userId={userId} />
+          <SectionErrorBoundary label="Dream Journal"><DreamHistoryCard userId={userId} /></SectionErrorBoundary>
 
           {/* Personal Dream Dictionary — symbol mood/context across dream history */}
-          <DreamSymbolContextCard userId={userId} />
+          <SectionErrorBoundary label="Symbol Dictionary"><DreamSymbolContextCard userId={userId} /></SectionErrorBoundary>
 
           {/* Dream Archetypes — universal patterns across dream history */}
-          <DreamArchetypeCard userId={userId} />
+          <SectionErrorBoundary label="Dream Archetypes"><DreamArchetypeCard userId={userId} /></SectionErrorBoundary>
 
           {/* Sleep Session Wellness Trend */}
           <Card className="glass-card p-5 hover-glow">
