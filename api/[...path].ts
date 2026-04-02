@@ -1486,6 +1486,9 @@ async function studyEnroll(req: VercelRequest, res: VercelResponse) {
           consentFullName, consentInitials } = req.body;
   if (!userId || !studyId || !consentVersion)
     return badRequest(res, 'userId, studyId, and consentVersion are required');
+  const KNOWN_STUDY_IDS = ['svapnastra-beta-v1', 'svapnastra-beta-v2', 'emotional-day-night-v1', 'dream-analysis-v1'];
+  if (!KNOWN_STUDY_IDS.includes(studyId))
+    return badRequest(res, 'Unknown studyId');
   const already = await getActiveParticipant(userId);
   if (already) return res.status(409).json({ message: 'Already enrolled in an active study', studyCode: already.studyCode });
   const db = getDb();
@@ -2222,7 +2225,7 @@ async function habitsGet(req: VercelRequest, res: VercelResponse, userId: string
   const db = getDb();
   const rows = await db.select().from(schema.habits)
     .where(and(eq(schema.habits.userId, userId), eq(schema.habits.isActive, true)))
-    .orderBy(asc(schema.habits.createdAt));
+    .orderBy(asc(schema.habits.createdAt)).limit(200);
   return success(res, rows);
 }
 
@@ -3749,9 +3752,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (s0 === 'device-connections' && s1 && req.method === 'GET') return await deviceConnectionsList(req, res, s1);
     if (s0 === 'devices') {
-      if (s1 === 'connect' && segs[2] && req.method === 'POST') return await devicesConnect(req, res, segs[2]);
-      if (s1 === 'sync' && segs[2] && req.method === 'POST') return await devicesSync(req, res, segs[2]);
-      if (s1 && req.method === 'DELETE') return await devicesDisconnect(req, res, s1);
+      const ALLOWED_PROVIDERS = ['apple', 'google', 'garmin', 'fitbit', 'polar', 'whoop', 'oura'];
+      if (s1 === 'connect' && segs[2] && req.method === 'POST') {
+        if (!ALLOWED_PROVIDERS.includes(segs[2])) return badRequest(res, 'Unknown device provider');
+        return await devicesConnect(req, res, segs[2]);
+      }
+      if (s1 === 'sync' && segs[2] && req.method === 'POST') {
+        if (!ALLOWED_PROVIDERS.includes(segs[2])) return badRequest(res, 'Unknown device provider');
+        return await devicesSync(req, res, segs[2]);
+      }
+      if (s1 && req.method === 'DELETE') {
+        if (!ALLOWED_PROVIDERS.includes(s1)) return badRequest(res, 'Unknown device provider');
+        return await devicesDisconnect(req, res, s1);
+      }
       if (s1 && req.method === 'GET') return await devicesList(req, res, s1);
     }
 
