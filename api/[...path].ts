@@ -995,9 +995,14 @@ async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
   if (!vapidPublic || !vapidPrivate) return error(res, 'VAPID keys not configured', 503);
 
-  const { userId, title = 'AntarAI', body = 'Good morning! Your brain report is ready.', url = '/brain-report' } = req.body;
-  // If userId provided, it must match the authenticated user (no cross-user notification triggering)
-  if (userId && userId !== authPayload.userId) return error(res, 'Forbidden', 403);
+  const { userId: bodyUserId, title: rawTitle, body: rawBody, url: rawUrl } = req.body ?? {};
+  // Always scope to the authenticated user — never allow broadcasting to all users
+  const targetUserId = authPayload.userId;
+  if (bodyUserId && bodyUserId !== targetUserId) return error(res, 'Forbidden', 403);
+  // Sanitize notification content
+  const title = typeof rawTitle === 'string' ? rawTitle.trim().slice(0, 100) : 'AntarAI';
+  const notifBody = typeof rawBody === 'string' ? rawBody.trim().slice(0, 200) : 'Good morning! Your brain report is ready.';
+  const url = typeof rawUrl === 'string' ? rawUrl.trim().slice(0, 200) : '/brain-report';
 
   const db = getDb();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1014,14 +1019,12 @@ async function notificationsTrigger(req: VercelRequest, res: VercelResponse) {
     return error(res, `VAPID setup failed: ${(e as Error).message}`, 500);
   }
 
-  // Fetch subscriptions — optionally scoped to one user
-  const subs = userId
-    ? await db.select().from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, userId))
-    : await db.select().from(schema.pushSubscriptions).limit(1000);
+  // Fetch subscriptions scoped to the authenticated user only
+  const subs = await db.select().from(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.userId, targetUserId));
 
   if (subs.length === 0) return success(res, { sent: 0, message: 'No subscriptions found' });
 
-  const payload = JSON.stringify({ title, body, url });
+  const payload = JSON.stringify({ title, body: notifBody, url });
   const results = await Promise.allSettled(
     subs.map((sub: { endpoint: string; keys: unknown }) =>
       webPush.sendNotification(
@@ -2701,11 +2704,11 @@ async function dreamFramesPost(req: VercelRequest, res: VercelResponse) {
     valence: typeof f.valence === 'number' ? Math.min(1, Math.max(-1, f.valence)) : null,
     arousal: typeof f.arousal === 'number' ? Math.min(1, Math.max(0, f.arousal)) : null,
     lucidityScore: typeof f.lucidityScore === 'number' ? Math.min(1, Math.max(0, f.lucidityScore)) : null,
-    lucidityState: typeof f.lucidityState === 'string' ? f.lucidityState : null,
+    lucidityState: typeof f.lucidityState === 'string' ? f.lucidityState.slice(0, 50) : null,
     thetaActivity: typeof f.thetaActivity === 'number' ? f.thetaActivity : null,
     betaActivation: typeof f.betaActivation === 'number' ? f.betaActivation : null,
     eyeMovementIndex: typeof f.eyeMovementIndex === 'number' ? f.eyeMovementIndex : null,
-    dominantEmotion: typeof f.dominantEmotion === 'string' ? f.dominantEmotion : null,
+    dominantEmotion: typeof f.dominantEmotion === 'string' ? f.dominantEmotion.slice(0, 50) : null,
     timestamp: (() => { const d = f.timestamp ? new Date(f.timestamp) : new Date(); return isNaN(d.getTime()) ? new Date() : d; })(),
   }));
   await db.insert(schema.dreamFrames).values(rows).onConflictDoNothing();
